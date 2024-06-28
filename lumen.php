@@ -5,10 +5,11 @@ $keywords = ['let', 'if', 'else', 'elif', 'loop', 'def', 'return', 'echo', 'incl
 class Token {
     public $type;
     public $value;
-
-    public function __construct($type = null, $value = null) {
+    public $position;
+    public function __construct($type = null, $value = null, $position) {
         $this->type = $type;
         $this->value = $value;
+        $this->position = $position;
     }
 }
 
@@ -21,8 +22,8 @@ class Lexer {
         $this->source = $source . ' ';
     }
 
-    private function push_token($type, $value) {
-        array_push($this->tokens, new Token($type, $value));
+    private function push_token($type, $value, $start=null, $end=null) {
+        array_push($this->tokens, new Token($type, $value, [is_null($start) ? $this->pos : $start, is_null($end) ? $this->pos : $end]));
     }
 
     private function char() {
@@ -82,6 +83,7 @@ class Lexer {
 
     private function lex_number() {
         $number = $this->char();
+        $start = $this->pos;
         $has_dot = false;
         $this->pos++;
         while ($this->pos < strlen($this->source) && (is_numeric($this->char()) || $this->char() == '.')) {
@@ -94,32 +96,35 @@ class Lexer {
             $number .= $this->char();
             $this->pos++;
         }
-        $this->push_token("NUMBER", $number);
+        $this->push_token("NUMBER", $number, $start, $this->pos-1);
     }
 
     private function lex_identifier() {
         $identifier = $this->char();
+        $start = $this->pos;
         $this->pos++;
         $legible_chars = array_merge(range('0','9'), range('A', 'Z'), range('a','z'), ['_']);
         while ($this->pos < strlen($this->source) && in_array($this->char(), $legible_chars)) {
             $identifier .= $this->char();
             $this->pos++;
         }
-        $this->push_token(in_array($identifier, $GLOBALS['keywords']) ? "KEYWORD" : "IDENTIFIER", $identifier);
+        $this->push_token(in_array($identifier, $GLOBALS['keywords']) ? "KEYWORD" : "IDENTIFIER", $identifier,  $start, $this->pos-1);
     }
 
     private function lex_string() {
         $opening_quote = $this->char();
+        $start = $this->pos;
         $this->pos++;
         $string = "";
         while ($this->pos < strlen($this->source) && $this->char() != $opening_quote) {
             $string .= $this->char();
             $this->pos++;
         }
-        $this->pos++; // skip the closing quote.
-        $this->push_token("STRING", $string);
+        $this->pos++; 
+        $this->push_token("STRING", $string, $start, $this->pos-1);
     }
 }
+
 
 $lexer = new Lexer("
 <?lumen
