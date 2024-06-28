@@ -43,6 +43,9 @@ class Lexer {
             } elseif ($char == '>') {
                 $this->push_token("CLOSE_ANGLE", $this->char());
                 $this->pos++;
+            } elseif ($char == '/') {
+                $this->push_token("BACK_SLASH", $this->char());
+                $this->pos++;
             } elseif ($char == '=') {
                 $this->push_token("EQUAL", $this->char());
                 $this->pos++;
@@ -115,6 +118,12 @@ $lexer = new Lexer("
 <?lumen
 \$variable = \"Hello, World!\";
 ?>
+
+<html>
+<body>
+<p> Hey! </p>
+</body>
+</html>
 ");
 print_r($lexer->lex());
 
