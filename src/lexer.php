@@ -1,5 +1,6 @@
 <?php
 
+$keywords = ['let', 'if', 'else', 'elif', 'loop', 'def', 'return', 'echo', 'include'];
 
 class Token {
     public $type;
@@ -52,6 +53,15 @@ class Lexer {
             } elseif ($char == '(') {
                 $this->push_token("OPEN_PAREN", $this->char());
                 $this->pos++;
+            } elseif ($char == ')') {
+                $this->push_token("CLOSE_PAREN", $this->char());
+                $this->pos++;
+            } elseif ($char == '{') {
+                $this->push_token("OPEN_CURLY", $this->char());
+                $this->pos++;
+            } elseif ($char == '}') {
+                $this->push_token("CLOSE_CURLY", $this->char());
+                $this->pos++;
             } elseif ($char == ';') {
                 $this->push_token("SEMI_COLON", $this->char());
                 $this->pos++;
@@ -90,14 +100,13 @@ class Lexer {
     private function lex_identifier() {
         $identifier = $this->char();
         $this->pos++;
-        $legable_chars = array_merge(range('0','9') ,range('A', 'Z'), range('a','z'), ['_']);
-        while ($this->pos < strlen($this->source) && in_array($this->char(), $legable_chars)) {    
+        $legible_chars = array_merge(range('0','9'), range('A', 'Z'), range('a','z'), ['_']);
+        while ($this->pos < strlen($this->source) && in_array($this->char(), $legible_chars)) {
             $identifier .= $this->char();
             $this->pos++;
         }
-        $this->push_token("IDENTIFIER", $identifier);
+        $this->push_token(in_array($identifier, $GLOBALS['keywords']) ? "KEYWORD" : "IDENTIFIER", $identifier);
     }
-
 
     private function lex_string() {
         $opening_quote = $this->char();
@@ -110,20 +119,12 @@ class Lexer {
         $this->pos++; // skip the closing quote.
         $this->push_token("STRING", $string);
     }
-    
 }
-
 
 $lexer = new Lexer("
 <?lumen
-\$variable = \"Hello, World!\";
+let z = 45;
 ?>
-
-<html>
-<body>
-<p> Hey! </p>
-</body>
-</html>
 ");
 print_r($lexer->lex());
 

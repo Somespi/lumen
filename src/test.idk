@@ -1,7 +1,0 @@
-<?php>
-
-    $data = 35;
-    $local: data = 35;
-    $global: data = 35;
-
-</?php>
