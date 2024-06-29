@@ -1,6 +1,6 @@
 <?php
 
-$keywords = ['let', 'if', 'else', 'elif', 'die', 'loop', 'def', 'return', 'echo', 'include'];
+$keywords = ['let', 'if', 'else', 'elif', 'die', 'loop', 'def', 'return', 'echo' ];
 
 class Token {
     public $type;
@@ -246,6 +246,10 @@ class Identifier {
     }
 }
 
+class Kill {
+    
+}
+
 class BinaryOperation {
     public $right;
     public $operator;
@@ -390,12 +394,19 @@ class Parser {
                     return $this->parse_return_statement();
                 case 'def':
                     return $this->parse_function_defination();
+                case 'die':
+                    return $this->parse_die();
             }
         }
     
         return $this->parse_expression();
     }
 
+    private function parse_die() {
+        $this->expect('KEYWORD', 'die');
+        $this->expect('SEMI_COLON');
+        return new Kill();
+    }
     private function parse_function_defination() {
         $this->expect('KEYWORD', 'def');
         $token = $this->currentToken();
@@ -569,15 +580,161 @@ class Parser {
     }
 }
 
+class Interpreter {
+    private $program;
+    private $source_code;
+    private $functions = [];
+    private $variables = [];
+    private $echos = [];
+    private $echos_logged = 0;
+    private $data;
+    private $echo_tracker = 0;
 
+    public function __construct($source_code) {
+        $this->source_code = $source_code;
+    }
 
+    public function interpret() {
+        $pattern = "/<\?lumen([\s\S]*?)\?>/";
+        $data = [];
+        $collected_code = "";
+        if (preg_match_all($pattern, $this->source_code, $matches, PREG_OFFSET_CAPTURE)) {
+            foreach ($matches[0] as $match) {
+                $matchedString = $match[0];
+                $startPosition = $match[1];
+                $endPosition = $startPosition + strlen($matchedString);
+                $collected_code .= substr($matchedString, 7, -2) . PHP_EOL;
+                preg_match_all("/(?:echo [^;]*;)/", $matchedString, $number_of_echos, PREG_OFFSET_CAPTURE);
+                array_push($data, [$matchedString, $startPosition, $endPosition, count($number_of_echos) ]);
+                
+            }
+        
+        $lexer = new Lexer($collected_code);
+        $parser = new Parser($lexer);
+        $this->program = $parser->parse();
+        $this->data = $data;
 
+        foreach ($this->program->body as $statement) {
+            $this->execute_statement($statement);
+        }
+        
+        
+        foreach (($this->data) as $dataItem) {
+            $startPosition = $dataItem[1];
+            $endPosition = $dataItem[2];
+            $replacement = "";
+            $loop = $this->echos[$startPosition] ?? [];
+            foreach ($loop as $value) {
+                $replacement .= "{$value}";
+            }
+            $escaped_pattern = preg_quote($dataItem[0], '/');
+            $this->source_code = preg_replace("/{$escaped_pattern}/", $replacement, $this->source_code);
 
-$lexer = new Lexer("
-def my_function(a, b, c) {
-    echo -a;
+        }
+    }
+    return $this->source_code;
+    }
+
+    
+
+    private function execute_statement($statement) {
+        if ($statement instanceof Kill) {
+            die;
+        } elseif ($statement instanceof DeclareVariable) {
+            if (array_key_exists($statement->name, $this->variables)) {
+                echo "Variable \"" . $statement->name ."\" already exists.";
+                die;
+            }
+            $this->variables[$statement->name] = $this->evaluate_expression($statement->value);
+        } elseif ($statement instanceof EchoStatement) {
+            $value = $this->evaluate_expression($statement->expression);
+            $echo_data = $this->data[$this->echo_tracker];
+            $start_value = $echo_data[1];
+            if (isset($this->echos[$start_value])) {
+                    array_push($this->echos[$start_value], $value);
+            } else {
+                $this->echos[$start_value] = [$value];
+            }
+            $this->echos_logged += 1;
+            if ($echo_data[3] == $this->echos_logged) {
+                $this->echo_tracker++;
+            }
+
+        } else {
+            $this->evaluate_expression($statement);
+        }
+    }
+
+    private function evaluate_expression($expression) {
+        if ($expression instanceof NumberLiteral) {
+            return (float)$expression->value;
+        } 
+        if ($expression instanceof StringLiteral) {
+            return $expression->value;
+        } 
+        if ($expression instanceof Identifier) {
+            if (!array_key_exists($expression->value, $this->variables)) {
+                echo "Undefined identifier \"" . $expression->value ."\".";
+                die;
+            }
+            return $variables[$expression->value];
+        }
+        if ($expression instanceof BinaryOperation) {
+            $left = $this->evaluate_expression($expression->left);
+            $right = $this->evaluate_expression($expression->right);
+            switch ($expression->operator) {
+                case Operation::Add:
+                    return $left + $right;
+                case Operation::Sub:
+                    return $left - $right;
+                case Operation::Div:
+                    return $left / $right;
+                case Operation::Mult:
+                    return $left * $right;
+            }
+        }
+        if ($expression instanceof Compare) {
+            $left = $this->evaluate_expression($expression->left);
+            $right = $this->evaluate_expression($expression->right);
+            switch ($expression->operator) {
+                case Comparison::Gt:
+                    return $left > $right;
+                case Comparison::Lt:
+                    return $left < $right;
+                case Comparison::LtE:
+                    return $left <= $right;
+                case Comparison::GtE:
+                    return $left >= $right;
+                case Comparison::Is:
+                    return $left == $right;
+                case Comparison::IsNot:
+                    return $left != $right;
+            }
+        }
+        if ($expression instanceof UnaryOperation) {
+            $operand = $this->evaluate_expression($expression->operand);
+            switch ($expression->operator) {
+                case Unary::Not:
+                    return !($operand);
+                case Unary::Minus:
+                    return -($operand);
+            }
+        }
+
+        
+    }
 }
-");
 
-$parser = new Parser($lexer);
-print_r($parser->parse());
+
+
+$source = "
+<?lumen echo 'Hey'; ?>
+<p>
+<?lumen 
+    echo 34;    
+    echo ' LOL';
+?>
+</p>
+";
+$interpreter = new Interpreter($source);
+echo ($interpreter->interpret());
