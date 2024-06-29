@@ -1,6 +1,6 @@
 <?php
 
-$keywords = ['let', 'if', 'else', 'elif', 'loop', 'def', 'return', 'echo', 'include'];
+$keywords = ['let', 'if', 'else', 'elif', 'die', 'loop', 'def', 'return', 'echo', 'include'];
 
 class Token {
     public $type;
@@ -15,7 +15,7 @@ class Token {
 
 class Lexer {
     public $source;
-    public $tokens = [];
+    private $tokens = [];
     private $pos = 0;
 
     public function __construct($source) {
@@ -39,17 +39,17 @@ class Lexer {
                 $this->lex_identifier();
             } elseif ($char == '"' || $char == "'") {
                 $this->lex_string();
-            } elseif ($char == '<') {
-                $this->push_token("OPEN_ANGLE", $this->char());
-                $this->pos++;
-            } elseif ($char == '>') {
-                $this->push_token("CLOSE_ANGLE", $this->char());
-                $this->pos++;
             } elseif ($char == '/') {
                 $this->push_token("BACK_SLASH", $this->char());
                 $this->pos++;
             } elseif ($char == '=') {
-                $this->push_token("EQUAL", $this->char());
+                if ($this->source[$this->pos + 1] == '=') {
+                    $this->pos+=2;
+                    $this->push_token("OPERATOR", "==");
+                } else {
+                    $this->push_token("EQUAL", $this->char());
+                    $this->pos++;
+                }
                 $this->pos++;
             } elseif ($char == '(') {
                 $this->push_token("OPEN_PAREN", $this->char());
@@ -72,12 +72,50 @@ class Lexer {
             } elseif ($char == '?') {
                 $this->push_token("QUESTION_MARK", $this->char());
                 $this->pos++;
+            }elseif ($char == '+') {
+                $this->push_token("OPERATOR", $this->char());
+                $this->pos++;
+            }elseif ($char == '-') {
+                $this->push_token("OPERATOR", $this->char());
+                $this->pos++;
+            }elseif ($char == '*') {
+                $this->push_token("OPERATOR", $this->char());
+                $this->pos++;
+            }elseif ($char == '/') {
+                $this->push_token("OPERATOR", $this->char());
+                $this->pos++;
+            } elseif ($char == '!') {
+                if ($this->source[$this->pos + 1] == '=') {
+                    $this->pos+=2;
+                    $this->push_token("OPERATOR", "!=");
+                } else {
+                    $this->push_token("NOT", $this->char());
+                    $this->pos++;
+                }
+            }
+            elseif ($char == '<') {
+                if ($this->source[$this->pos + 1] == '=') {
+                    $this->pos+=2;
+                    $this->push_token("OPERATOR", "<=");
+                } else {
+                    $this->push_token("OPERATOR", $this->char());
+                    $this->pos++;
+                }
+            }elseif ($char == '>') {
+                if ($this->source[$this->pos + 1] == '=') {
+                    $this->pos+=2;
+                    $this->push_token("OPERATOR", ">=");
+                } else {
+                    $this->push_token("OPERATOR", $this->char());
+                    $this->pos++;
+                }
             } elseif (empty(trim($char))) {
                 $this->pos++;
             } else {
                 $this->pos++;
             }
         }
+        $this->push_token('EOF', '\0');
         return $this->tokens;
     }
 
@@ -125,11 +163,334 @@ class Lexer {
     }
 }
 
+class Program {
+    public $body = [];
+}
+
+class EchoStatement {
+    public $expression;
+    public $pos;
+
+    public function __construct($expression, $pos) {
+        $this->expression = $expression;
+        $this->pos = $pos;
+    }
+}
+
+
+class DeclareVariable {
+    public $name;
+    public $value;
+    public $pos; 
+
+    public function __construct($name, $value, $pos) {
+        $this->name = $name;
+        $this->value = $value;
+        $this->pos = $pos;
+    }
+}
+
+class IfStatement {
+    public $condition;
+    public $body = [];
+    public $tryother = [];
+    public $else;
+    public $pos; 
+
+    public function __construct($condition, $body, $tryother, $else, $pos) {
+        $this->condition = $condition;
+        $this->body = $body;
+        $this->pos = $pos;
+        $this->tryother = $tryother;
+        $this->else = $else;
+    }
+}
+
+class NumberLiteral {
+    public $value;
+
+    public function __construct($value) {
+        $this->value = $value;
+    }
+}
+
+class StringLiteral {
+    public $value;
+
+    public function __construct($value) {
+        $this->value = $value;
+    }
+}
+
+class Identifier {
+    public $value;
+
+    public function __construct($value) {
+        $this->value = $value;
+    }
+}
+
+class BinaryOperation {
+    public $right;
+    public $operator;
+    public $left;
+
+    public function __construct($right, $operator, $left) {
+        $this->right = $right;
+        $this->operator = $operator;
+        $this->left = $left;
+    }
+}
+enum Comparison
+{
+    case Gt;
+    case Lt;
+    case LtE;
+    case GtE;
+    case Is;
+    case IsNot;
+}
+
+enum Operation
+{
+    case Add;
+    case Sub;
+    case Div;
+    case Mult;
+}
+
+class Compare {
+    public $right;
+    public $operator;
+    public $left;
+
+    public function __construct($right, $operator, $left) {
+        $this->right = $right;
+        $this->operator = $operator;
+        $this->left = $left;
+    }
+}
+
+
+class Parser {
+    public $tokens;
+    public $pos = 0;
+    private $precedence = [
+        '+' => 1,
+        '-' => 1,
+        '*' => 2,
+        '/' => 2,
+        '==' => 3,
+        '!=' => 3,
+        '<' => 3,
+        '>' => 3,
+        '<=' => 3,
+        '>=' => 3,
+    ];
+    private $comparison = [
+        '>' => Comparison::Gt,
+        '<' => Comparison::Lt,
+        '<=' => Comparison::LtE,
+        '>=' => Comparison::GtE,
+        '!=' => Comparison::IsNot,
+        '==' => Comparison::Is,
+    ];
+    private $operation = [
+        '+' => Operation::Add,
+        '-' => Operation::Sub,
+        '/' => Operation::Div,
+        '*' => Operation::Mult,
+    ];
+
+    public function __construct(Lexer $lexer_object) {
+        $this->tokens = $lexer_object->lex();
+    }
+
+    private function currentToken() {
+        return $this->tokens[$this->pos];
+    }
+
+    private function nextToken() {
+        $this->pos++;
+    }
+
+    private function expect($type, $value = null) {
+        $token = $this->currentToken();
+        if ($token->type !== $type || ($value !== null && $token->value !== $value)) {
+            throw new Exception("Unexpected token: " . $token->type . " " . $token->value);
+        }
+        $this->nextToken();
+    }
+
+    public function parse() {
+        $program = new Program();
+
+        while ($this->currentToken()->type !== 'EOF') {
+            $statement = $this->parse_statement();
+            if ($statement !== null) {
+                array_push($program->body, $statement);
+            }
+        }
+
+        return $program;
+    }
+
+    private function parse_statement() {
+        $token = $this->currentToken();
+    
+        if ($token->type === 'KEYWORD') {
+            switch ($token->value) {
+                case 'echo':
+                    return $this->parse_echo();
+                case 'let':
+                    return $this->parse_variable_declaration();
+                case 'if':
+                    return $this->parse_if_statement();
+                case 'loop':
+                    return $this->parse_loop_statement();
+                case 'return':
+                    return $this->parse_return_statement();
+            }
+        }
+    
+        return $this->parse_expression();
+    }
+
+    private function parse_return_statement() {
+        $this->expect('KEYWORD', 'return');
+        $value = $this->parse_expression();
+        $this->expect('SEMI_COLON');
+        
+        return new ReturnStatement($value, $this->currentToken()->position);
+    }
+    
+    private function parse_loop_statement() {
+        $this->expect('KEYWORD', 'loop');
+        $condition = $this->parse_expression();
+        $this->expect('OPEN_CURLY');
+        
+        $body = [];
+        while ($this->currentToken()->type !== 'CLOSE_CURLY') {
+            $body[] = $this->parse_statement();
+        }
+        $this->expect('CLOSE_CURLY');
+        
+        return new LoopStatement($condition, $body, $this->currentToken()->position);
+    }
+    
+    
+    private function parse_if_statement() {
+        $this->expect('KEYWORD', 'if');
+        $condition = $this->parse_expression();
+        $this->expect('OPEN_CURLY');
+        
+        $body = [];
+        while ($this->currentToken()->type !== 'CLOSE_CURLY') {
+            $body[] = $this->parse_statement();
+        }
+        $this->expect('CLOSE_CURLY');
+        
+        $tryother = [];
+        $else = null;
+        
+        if ($this->currentToken()->type === 'KEYWORD' && $this->currentToken()->value === 'elif') {
+            $tryother[] = $this->parse_if_statement();
+        } elseif ($this->currentToken()->type === 'KEYWORD' && $this->currentToken()->value === 'else') {
+            $this->expect('KEYWORD', 'else');
+            $this->expect('OPEN_CURLY');
+            
+            $else = [];
+            while ($this->currentToken()->type !== 'CLOSE_CURLY') {
+                $else[] = $this->parse_statement();
+            }
+            $this->expect('CLOSE_CURLY');
+        }
+        
+        return new IfStatement($condition, $body, $tryother, $else, $this->currentToken()->position);
+    }
+
+
+    
+
+    private function parse_echo() {
+        $this->expect('KEYWORD', 'echo');
+
+        $expression = $this->parse_expression();
+        $token = $this->currentToken();
+
+        $echo_statement = new EchoStatement($expression, $token->position);
+        $this->expect('SEMI_COLON'); 
+
+        return $echo_statement;
+    }
+
+    private function parse_variable_declaration() {
+        $this->expect('KEYWORD', 'let');
+
+        $name = $this->currentToken()->value;
+        $this->expect('IDENTIFIER');
+
+        $this->expect('EQUAL');
+
+        $value = $this->parse_expression();
+        $token = $this->currentToken();
+
+        $var_declaration = new DeclareVariable($name, $value, $token->position);
+        $this->expect('SEMI_COLON'); 
+
+        return $var_declaration;
+    }
+    private function parse_expression($precedence = 0) {
+        $left = $this->parse_primary_expression();
+        while ($this->currentToken()->type === 'OPERATOR' && $this->precedence[$this->currentToken()->value] > $precedence) {
+            $operator = $this->currentToken()->value;
+            $this->nextToken();
+            $right = $this->parse_expression($this->precedence[$operator]);
+
+            if (in_array($operator, ['<', '>', '<=', '>=', '!=', '=='])) {
+                $left = new Compare($left, $this->comparison[$operator] , $right);
+            } else {
+                $left = new BinaryOperation($left, $this->operation[$operator], $right);
+            }
+        }
+        return $left;
+    }
+
+    private function parse_primary_expression() {
+        $token = $this->currentToken();
+
+        if ($token->type === 'STRING') {
+            $value = $token->value;
+            $this->nextToken();
+            return new StringLiteral($value);
+        } elseif ($token->type === 'NUMBER') {
+            $value = $token->value;
+            $this->nextToken();
+            return new NumberLiteral($value);
+        } elseif ($token->type === 'IDENTIFIER') {
+            $value = $token->value;
+            $this->nextToken();
+            return new Identifier($value);
+        } elseif ($token->type === 'OPEN_PAREN') {
+            $this->nextToken();
+            $expression = $this->parse_expression();
+            $this->expect('CLOSE_PAREN');
+            return $expression;
+        }
+
+        throw new Exception("Unexpected token type: " . $token->type);
+    }
+}
+
+
+
+
 
 $lexer = new Lexer("
-<?lumen
-let z = 45;
-?>
+if a > (5 + 2) {
+    echo a;
+}
 ");
-print_r($lexer->lex());
 
+$parser = new Parser($lexer);
+print_r($parser->parse());
