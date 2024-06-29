@@ -605,7 +605,7 @@ class Interpreter {
                 $endPosition = $startPosition + strlen($matchedString);
                 $collected_code .= substr($matchedString, 7, -2) . PHP_EOL;
                 preg_match_all("/(?:echo [^;]*;)/", $matchedString, $number_of_echos, PREG_OFFSET_CAPTURE);
-                array_push($data, [$matchedString, $startPosition, $endPosition, count($number_of_echos) ]);
+                array_push($data, [$matchedString, $startPosition, $endPosition, count($number_of_echos[0]) ]);
                 
             }
         
@@ -649,6 +649,10 @@ class Interpreter {
         } elseif ($statement instanceof EchoStatement) {
             $value = $this->evaluate_expression($statement->expression);
             $echo_data = $this->data[$this->echo_tracker];
+            while ($this->data[$this->echo_tracker][3] == 0) {
+                $this->echo_tracker += 1;
+            }
+            $echo_data = $this->data[$this->echo_tracker];
             $start_value = $echo_data[1];
             if (isset($this->echos[$start_value])) {
                     array_push($this->echos[$start_value], $value);
@@ -677,7 +681,7 @@ class Interpreter {
                 echo "Undefined identifier \"" . $expression->value ."\".";
                 die;
             }
-            return $variables[$expression->value];
+            return $this->variables[$expression->value];
         }
         if ($expression instanceof BinaryOperation) {
             $left = $this->evaluate_expression($expression->left);
@@ -728,12 +732,13 @@ class Interpreter {
 
 
 $source = "
-<?lumen echo 'Hey'; ?>
+<?lumen let a = 24; ?>
+<?lumen let b = a + 45; ?>
 <p>
-<?lumen 
-    echo 34;    
-    echo ' LOL';
-?>
+    <?lumen echo a; ?>
+    <center>
+        <?lumen echo b;?>
+    </center>
 </p>
 ";
 $interpreter = new Interpreter($source);
