@@ -130,7 +130,8 @@ class Lexer {
         while ($this->pos < strlen($this->source) && (is_numeric($this->char()) || $this->char() == '.')) {
             if ($this->char() == '.') {
                 if ($has_dot) {
-                    throw new Exception('More than one floating point in a number.');
+                    echo ('More than one floating point in a number.');
+                    die;
                 }
                 $has_dot = true;
             }
@@ -266,6 +267,11 @@ enum Comparison
     case IsNot;
 }
 
+enum Unary
+{
+    case Not;
+    case Minus;
+}
 enum Operation
 {
     case Add;
@@ -285,6 +291,17 @@ class Compare {
         $this->left = $left;
     }
 }
+
+class UnaryOperation {
+    public $operator;
+    public $operand;
+
+    public function __construct($operator, $operand) {
+        $this->operator = $operator;
+        $this->left = $operand;
+    }
+}
+
 
 
 class Parser {
@@ -317,6 +334,11 @@ class Parser {
         '*' => Operation::Mult,
     ];
 
+    private $unary = [
+        '!' => Unary::Not,
+        '-' => Unary::Minus,
+    ];
+
     public function __construct(Lexer $lexer_object) {
         $this->tokens = $lexer_object->lex();
     }
@@ -332,7 +354,8 @@ class Parser {
     private function expect($type, $value = null) {
         $token = $this->currentToken();
         if ($token->type !== $type || ($value !== null && $token->value !== $value)) {
-            throw new Exception("Unexpected token: " . $token->type . " " . $token->value);
+            echo ("Unexpected token: " . $token->type . " " . $token->value);
+            die;
         }
         $this->nextToken();
     }
@@ -377,7 +400,8 @@ class Parser {
         $this->expect('KEYWORD', 'def');
         $token = $this->currentToken();
         if ($token->type !== "IDENTIFIER") {
-            throw new Exception("Unexpected token: " . $token->type);
+            echo ("Unexpected token: " . $token->type);
+            die;
         }
         $name = new Identifier($token->value);
         $this->nextToken();
@@ -386,12 +410,14 @@ class Parser {
         while ($this->currentToken()->type != 'CLOSE_PAREN' && $this->currentToken()->type != "EOF") {
 
             if ($this->currentToken()->type !== "IDENTIFIER") {
-                throw new Exception("Unexpected token: " . $this->currentToken()->type);
+                echo ("Unexpected token: " . $this->currentToken()->type);
+                die;
             }
             array_push($args, new Identifier($this->currentToken()->value));
             $this->nextToken();
             if ($this->currentToken()->type !== "COMMA" && $this->currentToken()->type !== "CLOSE_PAREN" ) {
-                throw new Exception("Unexpected token: " . $this->currentToken()->type);
+                echo ("Unexpected token: " . $this->currentToken()->type);
+                die;
             }
             if ($this->currentToken()->type === "COMMA") {
                 $this->nextToken();
@@ -510,6 +536,15 @@ class Parser {
     private function parse_primary_expression() {
         $token = $this->currentToken();
 
+        if ($token->value === '-') {
+            $this->nextToken();
+            $operand = $this->parse_primary_expression();
+            return new UnaryOperation(Unary::Minus, $operand); 
+        } elseif ($token->type === 'NOT') {
+            $this->nextToken();
+            $operand = $this->parse_primary_expression();
+            return new UnaryOperation(Unary::Not, $operand); 
+        }
         if ($token->type === 'STRING') {
             $value = $token->value;
             $this->nextToken();
@@ -529,7 +564,8 @@ class Parser {
             return $expression;
         }
 
-        throw new Exception("Unexpected token type: " . $token->type);
+        echo "Unexpected token type: " . $token->type . '\n';
+        die;
     }
 }
 
@@ -539,7 +575,7 @@ class Parser {
 
 $lexer = new Lexer("
 def my_function(a, b, c) {
-    echo a;
+    echo -a;
 }
 ");
 
