@@ -57,6 +57,9 @@ class Lexer {
             } elseif ($char == ')') {
                 $this->push_token("CLOSE_PAREN", $this->char());
                 $this->pos++;
+            } elseif ($char == ',') {
+                $this->push_token("COMMA", $this->char());
+                $this->pos++;
             } elseif ($char == '{') {
                 $this->push_token("OPEN_CURLY", $this->char());
                 $this->pos++;
@@ -187,6 +190,18 @@ class DeclareVariable {
         $this->name = $name;
         $this->value = $value;
         $this->pos = $pos;
+    }
+}
+
+class DeclareFunction {
+    public $name;
+    public $args;
+    public $body;
+
+    public function __construct($name, $args, $body) {
+        $this->name = $name;
+        $this->args = $args;
+        $this->body = $body;
     }
 }
 
@@ -350,10 +365,46 @@ class Parser {
                     return $this->parse_loop_statement();
                 case 'return':
                     return $this->parse_return_statement();
+                case 'def':
+                    return $this->parse_function_defination();
             }
         }
     
         return $this->parse_expression();
+    }
+
+    private function parse_function_defination() {
+        $this->expect('KEYWORD', 'def');
+        $token = $this->currentToken();
+        if ($token->type !== "IDENTIFIER") {
+            throw new Exception("Unexpected token: " . $token->type);
+        }
+        $name = new Identifier($token->value);
+        $this->nextToken();
+        $this->expect('OPEN_PAREN');
+        $args = [];
+        while ($this->currentToken()->type != 'CLOSE_PAREN' && $this->currentToken()->type != "EOF") {
+
+            if ($this->currentToken()->type !== "IDENTIFIER") {
+                throw new Exception("Unexpected token: " . $this->currentToken()->type);
+            }
+            array_push($args, new Identifier($this->currentToken()->value));
+            $this->nextToken();
+            if ($this->currentToken()->type !== "COMMA" && $this->currentToken()->type !== "CLOSE_PAREN" ) {
+                throw new Exception("Unexpected token: " . $this->currentToken()->type);
+            }
+            if ($this->currentToken()->type === "COMMA") {
+                $this->nextToken();
+            }
+        }
+        $this->nextToken();
+        $this->expect("OPEN_CURLY");
+        $body = [];
+        while ($this->currentToken()->type !== 'CLOSE_CURLY') {
+            $body[] = $this->parse_statement();
+        }
+        $this->expect('CLOSE_CURLY');
+        return new DeclareFunction($name, $args, $body);
     }
 
     private function parse_return_statement() {
@@ -487,7 +538,7 @@ class Parser {
 
 
 $lexer = new Lexer("
-if a > (5 + 2) {
+def my_function(a, b, c) {
     echo a;
 }
 ");
