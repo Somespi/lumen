@@ -1,0 +1,12 @@
+<?lumen 
+let test = 2;
+let a = 35;
+def abc(b) {
+    return b + 5;
+}
+?>
+<p>
+    <center>
+    <?lumen echo test - abc(a); ?>
+    </center>
+</p>

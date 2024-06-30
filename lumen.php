@@ -39,9 +39,6 @@ class Lexer {
                 $this->lex_identifier();
             } elseif ($char == '"' || $char == "'") {
                 $this->lex_string();
-            } elseif ($char == '/') {
-                $this->push_token("BACK_SLASH", $this->char());
-                $this->pos++;
             } elseif ($char == '=') {
                 if ($this->source[$this->pos + 1] == '=') {
                     $this->pos+=2;
@@ -781,7 +778,6 @@ class Interpreter {
             $program = $parser->parse();
             $optimizer = new Optimizer($program);
             $this->program = $optimizer->optimize();
-            print_r($this->program);
             $this->data = $data;
 
             foreach ($this->program->body as $statement) {
@@ -993,19 +989,10 @@ class Interpreter {
 
 
 
-$source = "
-<?lumen 
-let test = none;
-let a = 35;
-def abc(b) {
-    return b + 5;
+$interpreter = new Interpreter(file_get_contents($argv[1]));
+if (isset($argv[2])) {
+    file_put_contents($argv[2], ($interpreter->interpret())) or die("Unable to write the file.");
+
+} else {
+    echo ($interpreter->interpret());
 }
-?>
-<p>
-    <center>
-    <?lumen echo abc(a); ?>
-    </center>
-</p>
-";
-$interpreter = new Interpreter($source);
-echo ($interpreter->interpret());
