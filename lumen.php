@@ -1,6 +1,6 @@
 <?php
 
-$keywords = ['let', 'if', 'else', 'elif', 'die', 'loop', 'def', 'return', 'echo', 'break', 'continue', 'set'];
+$keywords = ['let', 'if', 'else', 'elif', 'del', 'die', 'loop', 'def', 'return', 'echo', 'break', 'continue', 'set'];
 
 class Token {
     public $type;
@@ -194,6 +194,14 @@ class DeclareVariable {
     }
 }
 
+class DeleteVariable {
+    public $name;
+
+    public function __construct($name) {
+        $this->name = $name;
+    }
+}
+
 class DeclareFunction {
     public $name;
     public $args;
@@ -206,6 +214,15 @@ class DeclareFunction {
     }
 }
 
+class FunctionCall {
+    public $name;
+    public $args;
+
+    public function __construct($name, $args, $body) {
+        $this->name = $name;
+        $this->args = $args;
+    }
+}
 class IfStatement {
     public $condition;
     public $body = [];
@@ -414,6 +431,8 @@ class Parser {
                     return $this->parse_function_defination();
                 case 'set':
                     return $this->parse_set_statement();
+                case 'del':
+                    return $this->parse_del();
                 case 'die':
                     return $this->parse_die();
             }
@@ -501,8 +520,20 @@ class Parser {
         return new LoopStatement($condition, $body, $this->currentToken()->position);
     }
     
+
+    private function parse_del() {
+        $this->expect('KEYWORD', 'del');
+        if ($this->currentToken()->type != 'IDENTIFIER') {
+            echo 'Expected Identifier after del, not ' . $this->currentToken()->type . '.';
+            die; 
+        }
+        $name = $this->currentToken();
+        $this->nextToken();
+        $this->expect('SEMI_COLON');
+        return new DeleteVariable($name);
+    }
     
-    private function parse_if_statement() {
+    private function parse_if_statement($original_if = TRUE) {
         $this->expect('KEYWORD', 'if');
         $condition = $this->parse_expression();
         $this->expect('OPEN_CURLY');
@@ -512,21 +543,22 @@ class Parser {
             $body[] = $this->parse_statement();
         }
         $this->expect('CLOSE_CURLY');
-        
         $tryother = [];
         $else = null;
         
-        if ($this->currentToken()->type === 'KEYWORD' && $this->currentToken()->value === 'elif') {
-            $tryother[] = $this->parse_if_statement();
-        } elseif ($this->currentToken()->type === 'KEYWORD' && $this->currentToken()->value === 'else') {
-            $this->expect('KEYWORD', 'else');
-            $this->expect('OPEN_CURLY');
-            
-            $else = [];
-            while ($this->currentToken()->type !== 'CLOSE_CURLY') {
-                $else[] = $this->parse_statement();
+        if ($original_if) {
+            if ($this->currentToken()->type === 'KEYWORD' && $this->currentToken()->value === 'elif') {
+                $tryother[] = $this->parse_if_statement(FALSE);
+            } elseif ($this->currentToken()->type === 'KEYWORD' && $this->currentToken()->value === 'else') {
+                $this->expect('KEYWORD', 'else');
+                $this->expect('OPEN_CURLY');
+                
+                $else = [];
+                while ($this->currentToken()->type !== 'CLOSE_CURLY') {
+                    $else[] = $this->parse_statement();
+                }
+                $this->expect('CLOSE_CURLY');
             }
-            $this->expect('CLOSE_CURLY');
         }
         
         return new IfStatement($condition, $body, $tryother, $else, $this->currentToken()->position);
@@ -602,6 +634,22 @@ class Parser {
         } elseif ($token->type === 'IDENTIFIER') {
             $value = $token->value;
             $this->nextToken();
+            if ($this->currentToken()->type == 'OPEN_PAREN') {
+                $args = [];
+                $this->nextToken();
+                while ($this->currentToken()->type != 'CLOSE_PAREN' && $this->currentToken()->type != "EOF") {
+                    array_push($args, $this->parse_expression($this->currentToken()->value));
+                    $this->nextToken();
+                    if ($this->currentToken()->type !== "COMMA" && $this->currentToken()->type !== "CLOSE_PAREN" ) {
+                        echo ("Unexpected token: " . $this->currentToken()->type);
+                        die;
+                    }
+                    if ($this->currentToken()->type === "COMMA") {
+                        $this->nextToken();
+                    }
+                }
+                return new FunctionCall($value, $args);
+            } 
             return new Identifier($value);
         } elseif ($token->type === 'OPEN_PAREN') {
             $this->nextToken();
@@ -727,7 +775,45 @@ class Interpreter {
         } elseif ($statement instanceof ContinueLoop) {
             echo "Use of continue outside of a loop is illegal.";
             die;
-        }  else {
+        } elseif ($statement instanceof IfStatement) {
+            $condition = $this->evaluate_expression($statement->condition);
+            if($condition) {
+                foreach ($statement->body as $statement_child) {
+                    $this->execute_statement($statement_child);
+                }
+            } else {
+                $pass_to_else = TRUE;
+                foreach ($statement->tryother as $elif) {
+                    if ($this->evaluate_expression($elif->condition)) {
+                        foreach ($elif->body as $statement_child) {
+                            $this->execute_statement($statement_child);
+                        }
+                        $pass_to_else = FALSE;
+                        break;
+                    }
+                }
+                if ($pass_to_else) {
+                    if (isset($statement->else)) {
+                        foreach ($statement->else as $statement_child) {
+                            $this->execute_statement($statement_child);
+                        }
+                    }
+                }
+            }
+        } 
+        elseif ($statement instanceof DeleteVariable) {
+            $name = $statement->name->value;
+            if (!isset($this->variables[$name])) {
+                echo "Unexpected Identifier \"" . $name ."\" was given to del";
+                die;
+            }
+            unset($this->variables[$name]);
+        } elseif ($statement instanceof FunctionDeclare) {
+            $function_name = $statement->name;
+            $args = $statement->args;
+            $body = $statement->body;
+
+        } else {
             $this->evaluate_expression($statement);
         }
     }
@@ -741,7 +827,7 @@ class Interpreter {
         } 
         if ($expression instanceof Identifier) {
             if (!array_key_exists($expression->value, $this->variables)) {
-                echo "Undefined identifier \"" . $expression->value ."\".";
+                echo "Found undeclared identifier \"" . $expression->value ."\".";
                 die;
             }
             return $this->variables[$expression->value];
@@ -797,9 +883,7 @@ class Interpreter {
 $source = "
 <?lumen 
 let a = 0;
-loop a != 5 {
-    set a = a + 1;
-}
+del a;
 ?>
 <p>
     <center>
