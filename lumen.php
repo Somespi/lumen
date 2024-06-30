@@ -218,7 +218,7 @@ class FunctionCall {
     public $name;
     public $args;
 
-    public function __construct($name, $args, $body) {
+    public function __construct($name, $args) {
         $this->name = $name;
         $this->args = $args;
     }
@@ -263,6 +263,13 @@ class Identifier {
     }
 }
 
+class ReturnStatement {
+    public $value;
+
+    public function __construct($value) {
+        $this->value = $value;
+    }
+}
 class Kill {}
 class BreakLoop {}
 class ContinueLoop {}
@@ -433,6 +440,8 @@ class Parser {
                     return $this->parse_set_statement();
                 case 'del':
                     return $this->parse_del();
+                case 'def':
+                    return $this->parse_function_defination();
                 case 'die':
                     return $this->parse_die();
             }
@@ -503,7 +512,7 @@ class Parser {
         $value = $this->parse_expression();
         $this->expect('SEMI_COLON');
         
-        return new ReturnStatement($value, $this->currentToken()->position);
+        return new ReturnStatement($value);
     }
     
     private function parse_loop_statement() {
@@ -639,7 +648,6 @@ class Parser {
                 $this->nextToken();
                 while ($this->currentToken()->type != 'CLOSE_PAREN' && $this->currentToken()->type != "EOF") {
                     array_push($args, $this->parse_expression($this->currentToken()->value));
-                    $this->nextToken();
                     if ($this->currentToken()->type !== "COMMA" && $this->currentToken()->type !== "CLOSE_PAREN" ) {
                         echo ("Unexpected token: " . $this->currentToken()->type);
                         die;
@@ -648,6 +656,7 @@ class Parser {
                         $this->nextToken();
                     }
                 }
+                $this->nextToken();
                 return new FunctionCall($value, $args);
             } 
             return new Identifier($value);
@@ -682,8 +691,9 @@ class Optimizer {
                 
             }  elseif ($statement instanceof LoopStatement) {
                 $this->program->body[$i] = $this->scoped_loop($statement);
-            }
-            elseif ($statement instanceof IfStatement) {
+            } elseif ($statement instanceof FunctionDeclare) {
+                $this->program->body[$i] = $this->scoped_loop($statement);
+            } elseif ($statement instanceof IfStatement) {
                 $this->program->body[$i] = $this->scoped_loop($statement);
                 $ii = 0;
                 foreach($statement->tryother as $elif) {
@@ -720,6 +730,20 @@ class Optimizer {
     }
 }
 
+class FunctionObject {
+    public $name;
+    public $args;
+    public $scope;
+    public $body;
+
+    public function __construct($name, $args, $body, $scope) {
+        $this->name = $name;
+        $this->args= $args;
+        $this->body = $body;
+        $this->scope = $scope;
+    }
+}
+
 class Interpreter {
     private $program;
     private $source_code;
@@ -746,58 +770,53 @@ class Interpreter {
                 $collected_code .= substr($matchedString, 7, -2) . PHP_EOL;
                 preg_match_all("/(?:echo [^;]*;)/", $matchedString, $number_of_echos, PREG_OFFSET_CAPTURE);
                 array_push($data, [$matchedString, $startPosition, $endPosition, count($number_of_echos[0]) ]);
-                
             }
-        
-        $lexer = new Lexer($collected_code);
-        $parser = new Parser($lexer);
-        $program = $parser->parse();
-        $optimizer = new Optimizer($program);
-        $this->program = ($optimizer->optimize());
-        $this->data = $data;
 
-        foreach ($this->program->body as $statement) {
-            $this->execute_statement($statement);
-        }
-        
-        
-        foreach (($this->data) as $dataItem) {
-            $startPosition = $dataItem[1];
-            $endPosition = $dataItem[2];
-            $replacement = "";
-            $loop = $this->echos[$startPosition] ?? [];
-            foreach ($loop as $value) {
-                $replacement .= "{$value}";
+            $lexer = new Lexer($collected_code);
+            $parser = new Parser($lexer);
+            $program = $parser->parse();
+            $optimizer = new Optimizer($program);
+            $this->program = $optimizer->optimize();
+            print_r($this->program);
+            $this->data = $data;
+
+            foreach ($this->program->body as $statement) {
+                $this->execute_statement($statement);
             }
-            $escaped_pattern = preg_quote($dataItem[0], '/');
-            $this->source_code = preg_replace("/{$escaped_pattern}/", $replacement, $this->source_code);
 
+            foreach ($this->data as $dataItem) {
+                $startPosition = $dataItem[1];
+                $endPosition = $dataItem[2];
+                $replacement = "";
+                $loop = $this->echos[$startPosition] ?? [];
+                foreach ($loop as $value) {
+                    $replacement .= "{$value}";
+                }
+                $escaped_pattern = preg_quote($dataItem[0], '/');
+                $this->source_code = preg_replace("/{$escaped_pattern}/", $replacement, $this->source_code);
+            }
         }
+        return $this->source_code;
     }
-    return $this->source_code;
-    }
-
-    
 
     private function execute_statement($statement) {
         if ($statement instanceof Kill) {
             die;
         } elseif ($statement instanceof DeclareVariable) {
             if (array_key_exists($statement->name, $this->variables)) {
-                echo "Variable \"" . $statement->name ."\" already exists.";
+                echo "Variable \"" . $statement->name . "\" already exists.";
                 die;
             }
             $this->variables[$statement->name] = $this->evaluate_expression($statement->value);
         } elseif ($statement instanceof EchoStatement) {
             $value = $this->evaluate_expression($statement->expression);
-            $echo_data = $this->data[$this->echo_tracker];
             while ($this->data[$this->echo_tracker][3] == 0) {
                 $this->echo_tracker += 1;
             }
             $echo_data = $this->data[$this->echo_tracker];
             $start_value = $echo_data[1];
             if (isset($this->echos[$start_value])) {
-                    array_push($this->echos[$start_value], $value);
+                array_push($this->echos[$start_value], $value);
             } else {
                 $this->echos[$start_value] = [$value];
             }
@@ -805,30 +824,26 @@ class Interpreter {
             if ($echo_data[3] == $this->echos_logged) {
                 $this->echo_tracker++;
             }
-
         } elseif ($statement instanceof LoopStatement) {
             while ($this->evaluate_expression($statement->condition)) {
                 foreach ($statement->body as $statement_child) {
                     if ($statement_child instanceof BreakLoop) {
                         break;
                     } elseif ($statement_child instanceof ContinueLoop) {
-                        continue;
+                        continue 2;
                     } else {
                         $this->execute_statement($statement_child);
                     }
                 }
             }
-
-        }
-        elseif ($statement instanceof AssignVariable) {
+        } elseif ($statement instanceof AssignVariable) {
             $name = $statement->name;
             if (!isset($this->variables[$name])) {
                 echo "Assigning into undeclared variable.";
                 die;
             }
             $this->variables[$name] = $this->evaluate_expression($statement->value);
-        }
-        elseif ($statement instanceof BreakLoop) {
+        } elseif ($statement instanceof BreakLoop) {
             echo "Use of break outside of a loop is illegal.";
             die;
         } elseif ($statement instanceof ContinueLoop) {
@@ -836,41 +851,39 @@ class Interpreter {
             die;
         } elseif ($statement instanceof IfStatement) {
             $condition = $this->evaluate_expression($statement->condition);
-            if($condition) {
+            if ($condition) {
                 foreach ($statement->body as $statement_child) {
                     $this->execute_statement($statement_child);
                 }
             } else {
-                $pass_to_else = TRUE;
+                $pass_to_else = true;
                 foreach ($statement->tryother as $elif) {
                     if ($this->evaluate_expression($elif->condition)) {
                         foreach ($elif->body as $statement_child) {
                             $this->execute_statement($statement_child);
                         }
-                        $pass_to_else = FALSE;
+                        $pass_to_else = false;
                         break;
                     }
                 }
-                if ($pass_to_else) {
-                    if (isset($statement->else)) {
-                        foreach ($statement->else as $statement_child) {
-                            $this->execute_statement($statement_child);
-                        }
+                if ($pass_to_else && isset($statement->else)) {
+                    foreach ($statement->else as $statement_child) {
+                        $this->execute_statement($statement_child);
                     }
                 }
             }
-        } 
-        elseif ($statement instanceof DeleteVariable) {
+        } elseif ($statement instanceof DeleteVariable) {
             $name = $statement->name;
             if (!isset($this->variables[$name])) {
-                echo "Unexpected Identifier \"" . $name ."\" was given to del";
+                echo "Unexpected Identifier \"" . $name . "\" was given to del";
                 die;
             }
             unset($this->variables[$name]);
-        } elseif ($statement instanceof FunctionDeclare) {
-            $function_name = $statement->name;
+        } elseif ($statement instanceof DeclareFunction) {
+            $name = $statement->name;
             $args = $statement->args;
             $body = $statement->body;
+            $this->functions[$name->value] = new FunctionObject($name, $args, $body, [$this->variables, $this->functions]);
 
         } else {
             $this->evaluate_expression($statement);
@@ -884,9 +897,12 @@ class Interpreter {
         if ($expression instanceof StringLiteral) {
             return $expression->value;
         } 
+        if ($expression instanceof FunctionCall) {
+            return $this->call_function($expression);
+        }
         if ($expression instanceof Identifier) {
             if (!array_key_exists($expression->value, $this->variables)) {
-                echo "Found undeclared identifier \"" . $expression->value ."\".";
+                echo "Found undeclared identifier \"" . $expression->value . "\".";
                 die;
             }
             return $this->variables[$expression->value];
@@ -927,13 +943,45 @@ class Interpreter {
             $operand = $this->evaluate_expression($expression->operand);
             switch ($expression->operator) {
                 case Unary::Not:
-                    return !($operand);
+                    return !$operand;
                 case Unary::Minus:
-                    return -($operand);
+                    return -$operand;
+            }
+        }
+    }
+
+    private function call_function($stat) {
+        $name = $stat->name;
+        $args = $stat->args;
+        $function_object = $this->functions[$name];
+        if (count($args) !== count($function_object->args)) {
+            echo "Incorrect number of arguments for function \"$name\".";
+            die;
+        }
+
+        $save_point_variables = $this->variables;
+        $save_point_functions = $this->functions;
+
+        $this->variables = $function_object->scope[0];
+        $this->functions = $function_object->scope[1];
+
+        foreach ($function_object->args as $index => $arg) {
+            $this->variables[$arg->value] = $this->evaluate_expression($args[$index]);
+        }
+
+        foreach ($function_object->body as $statement) {
+            if (!$statement instanceof ReturnStatement) {
+                $this->execute_statement($statement);
+            } else {
+                $val = $this->evaluate_expression($statement->value);
+                $this->variables = $save_point_variables;
+                $this->functions = $save_point_functions;
+                return $val ?? null;
             }
         }
 
-        
+        $this->variables = $save_point_variables;
+        $this->functions = $save_point_functions;
     }
 }
 
@@ -941,11 +989,14 @@ class Interpreter {
 
 $source = "
 <?lumen 
-let a = 34;
+let a = 35;
+def abc(b) {
+    return b + 5;
+}
 ?>
 <p>
     <center>
-    <?lumen echo a; ?>
+    <?lumen echo abc(a); ?>
     </center>
 </p>
 ";
