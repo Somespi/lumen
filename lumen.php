@@ -419,7 +419,9 @@ class Parser {
 
     private function parse_statement() {
         $token = $this->currentToken();
-    
+        if ($token->type === 'IDENTIFIER' && $this->tokens[$this->pos + 1]->type === 'EQUAL') {
+            return $this->parse_set_statement();
+        }
         if ($token->type === 'KEYWORD') {
             switch ($token->value) {
                 case 'echo':
@@ -448,7 +450,9 @@ class Parser {
         return $this->parse_expression();
     }
     private function parse_set_statement() {
-        $this->expect('KEYWORD', 'set');
+        if ($this->currentToken()->type == 'KEYWORD') {
+            $this->nextToken();
+        }
         $name = $this->currentToken()->value;
         $this->expect('IDENTIFIER');
 
@@ -963,9 +967,6 @@ class Interpreter {
 
         $save_point_variables = $this->variables;
         $save_point_functions = $this->functions;
-
-        $this->variables = $function_object->scope[0];
-        $this->functions = $function_object->scope[1];
 
         foreach ($function_object->args as $index => $arg) {
             $this->variables[$arg->value] = $this->evaluate_expression($args[$index]);

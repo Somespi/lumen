@@ -1,12 +1,6 @@
 <?lumen 
-let test = 2;
-let a = 35;
-def abc(b) {
-    return b + 5;
-}
+let a = 30;
+a = 25;
+set a = 40;
+echo a;
 ?>
-<p>
-    <center>
-    <?lumen echo abc(a) - test; ?>
-    </center>
-</p>
