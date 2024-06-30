@@ -916,11 +916,11 @@ class Interpreter {
                 case Operation::Add:
                     return $left + $right;
                 case Operation::Sub:
-                    return $left - $right;
+                    return $right - $left;
                 case Operation::Div:
-                    return $left / $right;
+                    return $right / $left;
                 case Operation::Mult:
-                    return $left * $right;
+                    return $right * $left;
             }
         }
         if ($expression instanceof Compare) {
@@ -928,13 +928,13 @@ class Interpreter {
             $right = $this->evaluate_expression($expression->right);
             switch ($expression->operator) {
                 case Comparison::Gt:
-                    return $left > $right;
-                case Comparison::Lt:
                     return $left < $right;
+                case Comparison::Lt:
+                    return $left > $right;
                 case Comparison::LtE:
-                    return $left <= $right;
-                case Comparison::GtE:
                     return $left >= $right;
+                case Comparison::GtE:
+                    return $left <= $right;
                 case Comparison::Is:
                     return $left == $right;
                 case Comparison::IsNot:

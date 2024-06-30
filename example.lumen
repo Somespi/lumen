@@ -7,6 +7,6 @@ def abc(b) {
 ?>
 <p>
     <center>
-    <?lumen echo test - abc(a); ?>
+    <?lumen echo abc(a) - test; ?>
     </center>
 </p>
