@@ -1,6 +1,6 @@
 <?php
 
-$keywords = ['let', 'if', 'else', 'elif', 'del', 'die', 'loop', 'def', 'return', 'echo', 'break', 'continue', 'set'];
+$keywords = ['let', 'if', 'else', 'elif', 'del', 'die', 'loop', 'none', 'def', 'return', 'echo', 'break', 'continue', 'set'];
 
 class Token {
     public $type;
@@ -271,6 +271,7 @@ class ReturnStatement {
     }
 }
 class Kill {}
+class None {}
 class BreakLoop {}
 class ContinueLoop {}
 
@@ -640,6 +641,9 @@ class Parser {
             $value = $token->value;
             $this->nextToken();
             return new NumberLiteral($value);
+        } elseif ($token->value == "none") {
+            $this->nextToken();
+            return new None();
         } elseif ($token->type === 'IDENTIFIER') {
             $value = $token->value;
             $this->nextToken();
@@ -893,6 +897,8 @@ class Interpreter {
     private function evaluate_expression($expression) {
         if ($expression instanceof NumberLiteral) {
             return (float)$expression->value;
+        } if ($expression instanceof None) {
+            return '';
         } 
         if ($expression instanceof StringLiteral) {
             return $expression->value;
@@ -989,6 +995,7 @@ class Interpreter {
 
 $source = "
 <?lumen 
+let test = none;
 let a = 35;
 def abc(b) {
     return b + 5;
