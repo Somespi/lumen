@@ -102,7 +102,7 @@ def functionName(arg1, arg2, ...) {
 }
 ```
 
-######## Function Call
+###### Function Call
 
 ```php
 functionName(arg1, arg2, ...);
