@@ -1,6 +1,6 @@
 <?php
 
-$keywords = ['let', 'if', 'else', 'elif', 'die', 'loop', 'def', 'return', 'echo' ];
+$keywords = ['let', 'if', 'else', 'elif', 'die', 'loop', 'def', 'return', 'echo', 'break', 'continue', 'set'];
 
 class Token {
     public $type;
@@ -246,9 +246,9 @@ class Identifier {
     }
 }
 
-class Kill {
-    
-}
+class Kill {}
+class BreakLoop {}
+class ContinueLoop {}
 
 class BinaryOperation {
     public $right;
@@ -306,7 +306,25 @@ class UnaryOperation {
     }
 }
 
+class LoopStatement {
+    public $condition;
+    public $body;
+    public $pos;
+    public function __construct($condition, $body, $pos) {
+        $this->condition = $condition;
+        $this->body = $body;
+        $this->pos = $pos;
+    }
+}
 
+class AssignVariable {
+    public $name;
+    public $value;
+    public function __construct($name, $value) {
+        $this->name = $name;
+        $this->value = $value;
+    }
+}
 
 class Parser {
     public $tokens;
@@ -394,12 +412,29 @@ class Parser {
                     return $this->parse_return_statement();
                 case 'def':
                     return $this->parse_function_defination();
+                case 'set':
+                    return $this->parse_set_statement();
                 case 'die':
                     return $this->parse_die();
             }
         }
     
         return $this->parse_expression();
+    }
+    private function parse_set_statement() {
+        $this->expect('KEYWORD', 'set');
+        $name = $this->currentToken()->value;
+        $this->expect('IDENTIFIER');
+
+        $this->expect('EQUAL');
+
+        $value = $this->parse_expression();
+        $token = $this->currentToken();
+
+        $var_reassign = new AssignVariable($name, $value);
+        $this->expect('SEMI_COLON'); 
+
+        return $var_reassign;
     }
 
     private function parse_die() {
@@ -664,7 +699,35 @@ class Interpreter {
                 $this->echo_tracker++;
             }
 
-        } else {
+        } elseif ($statement instanceof LoopStatement) {
+            while ($this->evaluate_expression($statement->condition)) {
+                foreach ($statement->body as $statement_child) {
+                    if ($statement_child instanceof BreakLoop) {
+                        break;
+                    } elseif ($statement_child instanceof ContinueLoop) {
+                        continue;
+                    } else {
+                        $this->execute_statement($statement_child);
+                    }
+                }
+            }
+
+        }
+        elseif ($statement instanceof AssignVariable) {
+            $name = $statement->name;
+            if (!isset($this->variables[$name])) {
+                echo "Assigning into undeclared variable.";
+                die;
+            }
+            $this->variables[$name] = $this->evaluate_expression($statement->value);
+        }
+        elseif ($statement instanceof BreakLoop) {
+            echo "Use of break outside of a loop is illegal.";
+            die;
+        } elseif ($statement instanceof ContinueLoop) {
+            echo "Use of continue outside of a loop is illegal.";
+            die;
+        }  else {
             $this->evaluate_expression($statement);
         }
     }
@@ -732,12 +795,15 @@ class Interpreter {
 
 
 $source = "
-<?lumen let a = 24; ?>
-<?lumen let b = a + 45; ?>
+<?lumen 
+let a = 0;
+loop a != 5 {
+    set a = a + 1;
+}
+?>
 <p>
-    <?lumen echo a; ?>
     <center>
-        <?lumen echo b;?>
+    <?lumen echo a; ?>
     </center>
 </p>
 ";
