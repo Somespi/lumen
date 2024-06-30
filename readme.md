@@ -198,7 +198,7 @@ echo "Hello, World!";
 ```php
 <?lumen
 let a = 10;
-a = 20;
+set a = 20;
 ?>
 ```
 
