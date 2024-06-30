@@ -70,7 +70,7 @@ Lumen supports the following operators:
 
 - **Arithmetic Operators:** `+`, `-`, `*`, `/`
 - **Comparison Operators:** `>`, `<`, `>=`, `<=`, `==`, `!=`
-- **Logical Operators:** `&&`, `||`, `!`
+- **Logical Operators:** `!`
 - **Unary Operators:** `-`, `!`
 
 
