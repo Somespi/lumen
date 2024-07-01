@@ -92,6 +92,8 @@ let variableName = expression;
 
 ```kotlin
 set variableName = expression;
+# or
+variableName = expression;
 ```
 
 ###### Function Declaration
