@@ -1,3 +1,4 @@
 <?lumen 
-echo pow(2,6);
+import "add.lumen";
+echo add(5,5);
 ?>

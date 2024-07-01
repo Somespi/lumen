@@ -1,6 +1,6 @@
 <?php
 
-$keywords = ['let', 'if', 'else', 'elif', 'del', 'die', 'loop', 'none', 'def', 'return', 'echo', 'break', 'continue', 'set'];
+$keywords = ['let', 'if', 'else', 'elif', 'del', 'die', 'loop', 'none', 'def', 'return', 'echo', 'break', 'continue', 'set', 'import'];
 
 class Token {
     public $type;
@@ -260,6 +260,14 @@ class Identifier {
     }
 }
 
+class Import {
+    public $filepath;
+
+    public function __construct($filepath) {
+        $this->filepath = $filepath;
+    }
+}
+
 class ReturnStatement {
     public $value;
 
@@ -444,6 +452,8 @@ class Parser {
                     return $this->parse_function_defination();
                 case 'die':
                     return $this->parse_die();
+                case 'import':
+                    return $this->parse_import();
             }
         }
     
@@ -515,6 +525,14 @@ class Parser {
         $this->expect('SEMI_COLON');
         
         return new ReturnStatement($value);
+    }
+
+    private function parse_import() {
+        $this->expect('KEYWORD', 'import');
+        $value = $this->parse_expression();
+        $this->expect('SEMI_COLON');
+        
+        return new Import($value);
     }
     
     private function parse_loop_statement() {
@@ -763,8 +781,8 @@ class StdLib {
 class Interpreter {
     private $program;
     private $source_code;
-    private $functions = [];
-    private $variables = [];
+    public $functions = [];
+    public $variables = [];
     private $echos = [];
     private $echos_logged = 0;
     private $data;
@@ -864,7 +882,18 @@ class Interpreter {
         } elseif ($statement instanceof ContinueLoop) {
             echo "Use of continue outside of a loop is illegal.";
             die;
-        } elseif ($statement instanceof IfStatement) {
+        } elseif ($statement instanceof Import) {
+            $source = file_get_contents($this->evaluate_expression($statement->filepath));
+            $inside_interpreter = new Interpreter($source);
+            $inside_interpreter->interpret();
+            foreach ($inside_interpreter->variables as $key => $value) {
+                $this->variables[$key] = $value;
+            }
+            foreach ($inside_interpreter->functions as $key => $value) {
+                $this->functions[$key] = $value;
+            }
+        }
+        elseif ($statement instanceof IfStatement) {
             $condition = $this->evaluate_expression($statement->condition);
             if ($condition) {
                 foreach ($statement->body as $statement_child) {
