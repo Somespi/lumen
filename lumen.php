@@ -702,10 +702,10 @@ class Optimizer {
                 $this->program->body[$i] = $this->scoped_loop($statement);
                 $ii = 0;
                 foreach($statement->tryother as $elif) {
-                    $this->program->body[i]->tryother[ii]->body = $this->scoped_loop($elif->body);
+                    $this->program->body[$i]->tryother[$ii]->body = $this->scoped_loop($elif->body);
                 }
                 if (isset($statement->else)) {
-                    $this->program->body[i]->else = $this->scoped_loop($statement->else);
+                    $this->program->body[$i]->else = $this->scoped_loop($statement->else, TRUE);
                 }
 
             }
@@ -718,9 +718,10 @@ class Optimizer {
         return $this->program;
     }
 
-    private function scoped_loop($statement) {
+    private function scoped_loop($statement, $is_else=FALSE) {
         $scope = [];
-        foreach ($statement->body as $statement_node) {
+        $nodes = (!$is_else) ? $statement->body : $statement;
+        foreach ($nodes as $statement_node) {
             if ($statement_node instanceof DeclareVariable) {
                 array_push($scope, $statement_node->name);
             } elseif ($statement_node instanceof DeleteVariable) {
@@ -746,6 +747,16 @@ class FunctionObject {
         $this->args= $args;
         $this->body = $body;
         $this->scope = $scope;
+    }
+}
+
+class StdLib {
+    public function pow($base, $exponent) {
+        return pow($base, $exponent);
+    }
+
+    public function Pi() {
+        return pi();
     }
 }
 
@@ -904,6 +915,14 @@ class Interpreter {
             return $expression->value;
         } 
         if ($expression instanceof FunctionCall) {
+            if (in_array($expression->name, get_class_methods('StdLib'))) {
+                $args = [];
+                foreach ($expression->args as $arg) {
+                    array_push($args, $this->evaluate_expression($arg));
+                }
+                
+                return call_user_func_array([new StdLib(), $expression->name], $args);
+            }
             return $this->call_function($expression);
         }
         if ($expression instanceof Identifier) {
