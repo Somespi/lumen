@@ -236,7 +236,7 @@ if (a > 3) {
 let i = 0;
 loop (i < 5) {
     echo i;
-    set i = i + 1;
+    i = i + 1;
 }
 ?>
 ```
