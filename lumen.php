@@ -825,6 +825,7 @@ class Interpreter {
                 foreach ($loop as $value) {
                     $replacement .= "{$value}";
                 }
+                $replacement = str_replace('\n', PHP_EOL, $replacement);
                 $escaped_pattern = preg_quote($dataItem[0], '/');
                 $this->source_code = preg_replace("/{$escaped_pattern}/", $replacement, $this->source_code);
             }
@@ -966,7 +967,10 @@ class Interpreter {
             $right = $this->evaluate_expression($expression->right);
             switch ($expression->operator) {
                 case Operation::Add:
-                    return $left + $right;
+                    if (gettype($left) == 'string') {
+                        return $right . "$left";
+                    }
+                    return $right + $left;
                 case Operation::Sub:
                     return $right - $left;
                 case Operation::Div:

@@ -1,0 +1,9 @@
+<?lumen 
+
+def great(name) {
+    return "Hello \n" + name;
+}
+
+echo great("Joe");
+
+?>
