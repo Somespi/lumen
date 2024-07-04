@@ -23,6 +23,7 @@ Lumen is a custom programming language designed to blend seamlessly with HTML. I
      - [Loops](#loops)
      - [Echo](#echo)
      - [Die](#die)
+					- [Import](#import) 
 3. [Expressions](#expressions)
    - [Arithmetic Expressions](#arithmetic-expressions)
    - [Comparison Expressions](#comparison-expressions)
@@ -52,6 +53,7 @@ Lumen reserves the following keywords:
 - `continue`
 - `set`
 - `return`
+- `import`
 
 ###### Identifiers
 
@@ -140,6 +142,12 @@ echo expression;
 
 ```php
 die;
+```
+
+###### Import
+
+```php
+import "filepath.lumen";
 ```
 
 #### Expressions
