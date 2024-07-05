@@ -1,7 +1,5 @@
 # Lumen
 Lumen is a custom programming language designed to blend seamlessly with HTML. It features simple syntax for variable declarations, function definitions, control flow, and more.
-**MOCKUP PHP BASICILLY**
-
 
 ## Lumen Language Reference
 
