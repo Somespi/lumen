@@ -1,4 +1,4 @@
 <?lumen 
-import "add.lumen";
-echo add(5,5);
+let test_array = array(1,2,3,4,5);
+echo test_array[0:-2];
 ?>

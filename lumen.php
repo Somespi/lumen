@@ -63,8 +63,20 @@ class Lexer {
             } elseif ($char == '}') {
                 $this->push_token("CLOSE_CURLY", $this->char());
                 $this->pos++;
+            } elseif ($char == '[') {
+                $this->push_token("OPEN_BRACKET", $this->char());
+                $this->pos++;
+            } elseif ($char == ']') {
+                $this->push_token("CLOSE_BRACKET", $this->char());
+                $this->pos++;
+            } elseif ($char == '%') {
+                $this->push_token("OPERATOR", $this->char());
+                $this->pos++;
             } elseif ($char == ';') {
                 $this->push_token("SEMI_COLON", $this->char());
+                $this->pos++;
+            } elseif ($char == ':') {
+                $this->push_token("COLON", $this->char());
                 $this->pos++;
             } elseif ($char == '$') {
                 $this->push_token("DOLLAR_SIGN", $this->char());
@@ -93,6 +105,25 @@ class Lexer {
                     $this->pos++;
                 }
             }
+            elseif ($char == '&') {
+                if ($this->source[$this->pos + 1] == '&') {
+                    $this->pos+=2;
+                    $this->push_token("OPERATOR", "&&");
+                } else {
+                    $this->push_token("OPERATOR", $this->char());
+                    $this->pos++;
+                }
+            }
+            elseif ($char == '|') {
+                if ($this->source[$this->pos + 1] == '|') {
+                    $this->pos+=2;
+                    $this->push_token("OPERATOR", "||");
+                } else {
+                    $this->push_token("OPERATOR", $this->char());
+                    $this->pos++;
+                }
+            }
+
             elseif ($char == '<') {
                 if ($this->source[$this->pos + 1] == '=') {
                     $this->pos+=2;
@@ -291,6 +322,49 @@ class BinaryOperation {
         $this->left = $left;
     }
 }
+
+class BoolOp {
+    public $right;
+    public $operator;
+    public $left;
+
+    public function __construct($right, $operator, $left) {
+        $this->right = $right;
+        $this->operator = $operator;
+        $this->left = $left;
+    }
+}
+
+class Subscript {
+    public $identifier;
+    public $slice;
+
+    public function __construct($value, $slice) {
+        $this->identifier = $value;
+        $this->slice = $slice;
+    }
+}
+
+class Slice {
+    public $lower;
+    public $upper;
+    public $steps;
+
+    public function __construct($lower=null, $upper=null, $steps=null) {
+        $this->lower = $lower;
+        $this->upper = $upper;
+        $this->steps = $steps;
+    }
+}
+
+class Index {
+    public $value;
+
+    public function __construct($value) {
+        $this->value = $value;
+    }
+}
+
 enum Comparison
 {
     case Gt;
@@ -312,6 +386,15 @@ enum Operation
     case Sub;
     case Div;
     case Mult;
+    case Modulo;
+    case BitAnd;
+    case BitOr;
+}
+
+enum BoolOperand
+{
+    case And;
+    case Or;
 }
 
 class Compare {
@@ -360,8 +443,11 @@ class Parser {
     public $tokens;
     public $pos = 0;
     private $precedence = [
+        '&' => 0,
+        '|' => 0,
         '+' => 1,
         '-' => 1,
+        '%' => 2,
         '*' => 2,
         '/' => 2,
         '==' => 3,
@@ -370,6 +456,8 @@ class Parser {
         '>' => 3,
         '<=' => 3,
         '>=' => 3,
+        '&&' => 4,
+        '||' => 4
     ];
     private $comparison = [
         '>' => Comparison::Gt,
@@ -384,6 +472,12 @@ class Parser {
         '-' => Operation::Sub,
         '/' => Operation::Div,
         '*' => Operation::Mult,
+        '%' => Operation::Modulo,
+    ];
+
+    private $bool = [
+        '&&' => BoolOperand::And,
+        '||' => BoolOperand::Or
     ];
 
     private $unary = [
@@ -633,6 +727,8 @@ class Parser {
 
             if (in_array($operator, ['<', '>', '<=', '>=', '!=', '=='])) {
                 $left = new Compare($left, $this->comparison[$operator] , $right);
+            } elseif (in_array($operator, ['&&', '||'])) {
+                $left = new BoolOp($left, $this->bool[$operator] , $right);
             } else {
                 $left = new BinaryOperation($left, $this->operation[$operator], $right);
             }
@@ -681,7 +777,81 @@ class Parser {
                 }
                 $this->nextToken();
                 return new FunctionCall($value, $args);
-            } 
+            }
+            if ($this->currentToken()->type == 'OPEN_BRACKET') {
+                $lower = null;
+                $upper = null;
+                $steps = null;
+                $this->nextToken();
+                if ($this->currentToken()->type != "COLON" && $this->tokens[$this->pos+1]->type == 'CLOSE_BRACKET') {
+                    $expression = $this->parse_expression();
+                    $this->nextToken();
+                    return new Subscript(new Identifier($value), new Index($expression));
+                }
+                $notation = "";
+                $start_not = [];
+                $i = 0;
+                while ($this->currentToken()->type != 'CLOSE_BRACKET' && $this->currentToken()->type != "EOF") {
+                    if (!isset($start_not[$i][0])) {
+                        array_push($start_not, [$this->pos]);
+                    }
+                    $notation .= "{$this->currentToken()->value}";
+                    $this->nextToken();
+                    if ($this->currentToken()->type == 'COLON') {
+                        array_push($start_not[$i], $this->pos);
+                        $i += 1;
+                    }
+                }
+                array_push($start_not[$i], $this->pos);
+                $components = explode(':', $notation);
+                $start = isset($components[0]) ? TRUE : null;
+                $stop = isset($components[1]) ? TRUE : null;
+                $step = isset($components[2]) ? TRUE : null;
+
+                if ($start == TRUE) {
+                    $internal_parser = new Parser(new Lexer(""));
+                    $internal_parser->tokens = array_merge(
+                        array_slice($this->tokens , $start_not[0][0], $start_not[0][1] - $start_not[0][0]), 
+                        [new Token("EOF", '\0', [$start_not[0][1] - $start_not[0][0], $start_not[0][1] - $start_not[0][0]])]
+                    );
+                    $internal_program = $internal_parser->parse();
+                    $start = $internal_program->body[0]; 
+                } else {
+                    $start = new NumberLiteral('0');
+                }
+
+                if ($stop == TRUE) {
+                    $internal_parser = new Parser(new Lexer(""));
+                    $internal_parser->tokens = array_merge(
+                        array_slice($this->tokens , $start_not[1][0] + 1, $start_not[1][1] - ($start_not[1][0] + 1)), 
+                        [new Token("EOF", '\0', [$start_not[1][1] - $start_not[1][0], $start_not[1][1] - $start_not[1][0] ])]
+                    );
+                    if (count($internal_parser->tokens) == 1) {
+                        $stop = new UnaryOperation(Unary::Minus, new NumberLiteral('1'));
+                    }
+                    else {
+                        $internal_program = $internal_parser->parse();
+                        $stop = $internal_program->body[0];
+                    }
+                } else {
+                    $stop = new UnaryOperation(Unary::Minus, new NumberLiteral('1'));
+                }
+
+                if ($step == TRUE) {
+                    $internal_parser = new Parser(new Lexer(""));
+                    $internal_parser->tokens = array_merge(
+                        array_slice($this->tokens , $start_not[2][0] + 1, $start_not[2][1] - ($start_not[2][0] + 1)), 
+                        [new Token("EOF", '\0', [$start_not[2][0] + 1, $start_not[2][0] + 1])]
+                    );
+                    $internal_program = $internal_parser->parse();
+                    $step = $internal_program->body[0];
+                } else {
+                    $step = new NumberLiteral('1');
+                }
+                $this->nextToken();
+                return new Subscript(new Identifier($value), new Slice($start, $stop, $step));
+
+            }
             return new Identifier($value);
         } elseif ($token->type === 'OPEN_PAREN') {
             $this->nextToken();
@@ -776,6 +946,10 @@ class StdLib {
     public function Pi() {
         return pi();
     }
+
+    public function array(...$items) {
+        return $items;
+    }
 }
 
 class Interpreter {
@@ -823,7 +997,20 @@ class Interpreter {
                 $replacement = "";
                 $loop = $this->echos[$startPosition] ?? [];
                 foreach ($loop as $value) {
-                    $replacement .= "{$value}";
+                    if (is_array($value)) {
+                        $replacement .= '[';
+                        $i = 0;
+                        foreach ($value as $val) {
+                            $replacement .= "$val";
+                            $i++;
+                            if ($i < count($value)) {
+                                $replacement .= ", ";
+                            }
+                        }
+                        $replacement .= ']';
+                    } else {
+                        $replacement .= "{$value}";
+                    }
                 }
                 $replacement = str_replace('\n', PHP_EOL, $replacement);
                 $escaped_pattern = preg_quote($dataItem[0], '/');
@@ -962,6 +1149,16 @@ class Interpreter {
             }
             return $this->variables[$expression->value];
         }
+        if ($expression instanceof BoolOp) {
+            $left = $this->evaluate_expression($expression->left);
+            $right = $this->evaluate_expression($expression->right);
+            switch ($expression->operator) {
+                case BoolOperand::And:
+                    return $right && $left;
+                case BoolOperand::Or:
+                    return $right || $left;
+                }
+        }
         if ($expression instanceof BinaryOperation) {
             $left = $this->evaluate_expression($expression->left);
             $right = $this->evaluate_expression($expression->right);
@@ -977,6 +1174,24 @@ class Interpreter {
                     return $right / $left;
                 case Operation::Mult:
                     return $right * $left;
+                case Operation::Modulo:
+                    if (($right - floatval(intval($right)) == 0) && ($left - floatval(intval($left)) == 0)) {
+                        return floatval(intval($right) % intval($left));
+                    }
+                    echo "Unexpected operands: float number cannot be moduled.";
+                    die;
+                case Operation::BitAnd:
+                    if (($right - floatval(intval($right)) == 0) && ($left - floatval(intval($left)) == 0)) {
+                        return floatval(intval($right) and intval($left));
+                    }
+                    echo "Unexpected operands: float number cannot be treated within int operation.";
+                    die;
+                case Operation::BitOr:
+                    if (($right - floatval(intval($right)) == 0) && ($left - floatval(intval($left)) == 0)) {
+                        return floatval(intval($right) or intval($left));
+                    }
+                    echo "Unexpected operands: float number cannot be treated within int operation.";
+                    die;
             }
         }
         if ($expression instanceof Compare) {
@@ -998,12 +1213,46 @@ class Interpreter {
             }
         }
         if ($expression instanceof UnaryOperation) {
-            $operand = $this->evaluate_expression($expression->operand);
+            $operand = $this->evaluate_expression($expression->left);
             switch ($expression->operator) {
                 case Unary::Not:
                     return !$operand;
                 case Unary::Minus:
-                    return -$operand;
+                    return $operand * -1;
+            }
+        }
+        if ($expression instanceof Subscript) {
+            $variable = $this->variables[($expression->identifier->value)];
+            if (!is_array($variable) && !is_string($variable)) {
+                echo "Presented unslicable type.";
+                die;
+            }
+            if ($expression->slice instanceof Index) {
+                return $variable[$this->evaluate_expression($expression->slice->value)];
+            }
+
+            if ($expression->slice instanceof Slice) {
+                $start = $this->evaluate_expression($expression->slice->lower);
+                $stop = $this->evaluate_expression($expression->slice->upper);
+                $step = $this->evaluate_expression($expression->slice->steps);
+                if ($stop < 0) {
+                    $stop = count($variable) - (-1 * $stop);
+                }
+                if ($step <= 0) {
+                    throw new InvalidArgumentException("Step cannot be zero.");
+                } 
+                $res = array_slice($variable,$start, $stop - $start + 1);
+            
+                if ($step != 1) {
+                    $result = [];
+                    for ($i = $start; ($step > 0 ? $i < $stop : $i > $stop) ; $i += $step) {
+                        if (isset($res[$i])) {
+                            $result[] = $res[$i];
+                        }
+                    }     
+                    return $result;           
+                }
+                return $res;
             }
         }
     }
