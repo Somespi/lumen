@@ -513,6 +513,9 @@ class Parser {
             $statement = $this->parse_statement();
             if ($statement !== null) {
                 array_push($program->body, $statement);
+                if ($this->currentToken()->type == 'SEMI_COLON') {
+                    $this->nextToken();
+                }
             }
         }
 
