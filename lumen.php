@@ -17,6 +17,7 @@ class Lexer {
     public $source;
     private $tokens = [];
     private $pos = 0;
+    private $mode = "text";
 
     public function __construct($source) {
         $this->source = $source . ' ';
@@ -33,117 +34,136 @@ class Lexer {
     public function lex() {
         while ($this->pos < strlen($this->source)) {
             $char = $this->char();
-            if (is_numeric($char)) {
-                $this->lex_number();
-            } elseif (in_array(strtolower($char), range('a', 'z'))) {
-                $this->lex_identifier();
-            } elseif ($char == '"' || $char == "'") {
-                $this->lex_string();
-            } elseif ($char == '=') {
-                if ($this->source[$this->pos + 1] == '=') {
+            if ($this->mode == "lumen") {
+                if (substr($this->source, $this->pos, 2) == "?>") {
                     $this->pos+=2;
-                    $this->push_token("OPERATOR", "==");
-                } else {
-                    $this->push_token("EQUAL", $this->char());
+                    $this->mode = "text";
+                } elseif (is_numeric($char)) {
+                    $this->lex_number();
+                } elseif (in_array(strtolower($char), range('a', 'z'))) {
+                    $this->lex_identifier();
+                } elseif ($char == '"' || $char == "'") {
+                    $this->lex_string();
+                } elseif ($char == '=') {
+                    if ($this->source[$this->pos + 1] == '=') {
+                        $this->pos+=2;
+                        $this->push_token("OPERATOR", "==");
+                    } else {
+                        $this->push_token("EQUAL", $this->char());
+                        $this->pos++;
+                    }
                     $this->pos++;
-                }
-                $this->pos++;
-            } elseif ($char == '(') {
-                $this->push_token("OPEN_PAREN", $this->char());
-                $this->pos++;
-            } elseif ($char == ')') {
-                $this->push_token("CLOSE_PAREN", $this->char());
-                $this->pos++;
-            } elseif ($char == ',') {
-                $this->push_token("COMMA", $this->char());
-                $this->pos++;
-            } elseif ($char == '{') {
-                $this->push_token("OPEN_CURLY", $this->char());
-                $this->pos++;
-            } elseif ($char == '}') {
-                $this->push_token("CLOSE_CURLY", $this->char());
-                $this->pos++;
-            } elseif ($char == '[') {
-                $this->push_token("OPEN_BRACKET", $this->char());
-                $this->pos++;
-            } elseif ($char == ']') {
-                $this->push_token("CLOSE_BRACKET", $this->char());
-                $this->pos++;
-            } elseif ($char == '%') {
-                $this->push_token("OPERATOR", $this->char());
-                $this->pos++;
-            } elseif ($char == ';') {
-                $this->push_token("SEMI_COLON", $this->char());
-                $this->pos++;
-            } elseif ($char == ':') {
-                $this->push_token("COLON", $this->char());
-                $this->pos++;
-            } elseif ($char == '$') {
-                $this->push_token("DOLLAR_SIGN", $this->char());
-                $this->pos++;
-            } elseif ($char == '?') {
-                $this->push_token("QUESTION_MARK", $this->char());
-                $this->pos++;
-            }elseif ($char == '+') {
-                $this->push_token("OPERATOR", $this->char());
-                $this->pos++;
-            }elseif ($char == '-') {
-                $this->push_token("OPERATOR", $this->char());
-                $this->pos++;
-            }elseif ($char == '*') {
-                $this->push_token("OPERATOR", $this->char());
-                $this->pos++;
-            }elseif ($char == '/') {
-                $this->push_token("OPERATOR", $this->char());
-                $this->pos++;
-            } elseif ($char == '!') {
-                if ($this->source[$this->pos + 1] == '=') {
-                    $this->pos+=2;
-                    $this->push_token("OPERATOR", "!=");
-                } else {
-                    $this->push_token("NOT", $this->char());
+                } elseif ($char == '(') {
+                    $this->push_token("OPEN_PAREN", $this->char());
                     $this->pos++;
-                }
-            }
-            elseif ($char == '&') {
-                if ($this->source[$this->pos + 1] == '&') {
-                    $this->pos+=2;
-                    $this->push_token("OPERATOR", "&&");
-                } else {
+                } elseif ($char == ')') {
+                    $this->push_token("CLOSE_PAREN", $this->char());
+                    $this->pos++;
+                } elseif ($char == ',') {
+                    $this->push_token("COMMA", $this->char());
+                    $this->pos++;
+                } elseif ($char == '{') {
+                    $this->push_token("OPEN_CURLY", $this->char());
+                    $this->pos++;
+                } elseif ($char == '}') {
+                    $this->push_token("CLOSE_CURLY", $this->char());
+                    $this->pos++;
+                } elseif ($char == '[') {
+                    $this->push_token("OPEN_BRACKET", $this->char());
+                    $this->pos++;
+                } elseif ($char == ']') {
+                    $this->push_token("CLOSE_BRACKET", $this->char());
+                    $this->pos++;
+                } elseif ($char == '%') {
                     $this->push_token("OPERATOR", $this->char());
                     $this->pos++;
-                }
-            }
-            elseif ($char == '|') {
-                if ($this->source[$this->pos + 1] == '|') {
-                    $this->pos+=2;
-                    $this->push_token("OPERATOR", "||");
-                } else {
+                } elseif ($char == ';') {
+                    $this->push_token("SEMI_COLON", $this->char());
+                    $this->pos++;
+                } elseif ($char == ':') {
+                    $this->push_token("COLON", $this->char());
+                    $this->pos++;
+                } elseif ($char == '$') {
+                    $this->push_token("DOLLAR_SIGN", $this->char());
+                    $this->pos++;
+                } elseif ($char == '?') {
+                    $this->push_token("QUESTION_MARK", $this->char());
+                    $this->pos++;
+                }elseif ($char == '+') {
                     $this->push_token("OPERATOR", $this->char());
                     $this->pos++;
-                }
-            }
-
-            elseif ($char == '<') {
-                if ($this->source[$this->pos + 1] == '=') {
-                    $this->pos+=2;
-                    $this->push_token("OPERATOR", "<=");
-                } else {
+                }elseif ($char == '-') {
                     $this->push_token("OPERATOR", $this->char());
                     $this->pos++;
-                }
-            }elseif ($char == '>') {
-                if ($this->source[$this->pos + 1] == '=') {
-                    $this->pos+=2;
-                    $this->push_token("OPERATOR", ">=");
-                } else {
+                }elseif ($char == '*') {
                     $this->push_token("OPERATOR", $this->char());
                     $this->pos++;
+                }elseif ($char == '/') {
+                    $this->push_token("OPERATOR", $this->char());
+                    $this->pos++;
+                } elseif ($char == '!') {
+                    if ($this->source[$this->pos + 1] == '=') {
+                        $this->pos+=2;
+                        $this->push_token("OPERATOR", "!=");
+                    } else {
+                        $this->push_token("NOT", $this->char());
+                        $this->pos++;
+                    }
                 }
-            } elseif (empty(trim($char))) {
-                $this->pos++;
+                elseif ($char == '&') {
+                    if ($this->source[$this->pos + 1] == '&') {
+                        $this->pos+=2;
+                        $this->push_token("OPERATOR", "&&");
+                    } else {
+                        $this->push_token("OPERATOR", $this->char());
+                        $this->pos++;
+                    }
+                }
+                elseif ($char == '|') {
+                    if ($this->source[$this->pos + 1] == '|') {
+                        $this->pos+=2;
+                        $this->push_token("OPERATOR", "||");
+                    } else {
+                        $this->push_token("OPERATOR", $this->char());
+                        $this->pos++;
+                    }
+                }
+    
+                elseif ($char == '<') {
+                    if ($this->source[$this->pos + 1] == '=') {
+                        $this->pos+=2;
+                        $this->push_token("OPERATOR", "<=");
+                    } else {
+                        $this->push_token("OPERATOR", $this->char());
+                        $this->pos++;
+                    }
+                }elseif ($char == '>') {
+                    if ($this->source[$this->pos + 1] == '=') {
+                        $this->pos+=2;
+                        $this->push_token("OPERATOR", ">=");
+                    } else {
+                        $this->push_token("OPERATOR", $this->char());
+                        $this->pos++;
+                    }
+                } elseif (empty(trim($char))) {
+                    $this->pos++;
+                }
+                
+                else {
+                    $this->pos++;
+                }
             } else {
-                $this->pos++;
+                $text = "";
+                while ($this->pos < strlen($this->source) ) {
+                    if (substr($this->source, $this->pos, 7) == "<?lumen") {
+                        $this->mode = "lumen";
+                        $this->pos += 7;
+                        break;
+                    }
+                    $text .= $this->char();
+                    $this->pos++;
+                }
+                $this->push_token("TEXT", $text);
             }
         }
         $this->push_token('EOF', '\0');
@@ -202,10 +222,12 @@ class Program {
 class EchoStatement {
     public $expression;
     public $pos;
+    public $id;
 
-    public function __construct($expression, $pos) {
+    public function __construct($expression, $pos, $id) {
         $this->expression = $expression;
         $this->pos = $pos;
+        $this->id = $id;
     }
 }
 
@@ -438,10 +460,17 @@ class AssignVariable {
         $this->value = $value;
     }
 }
+class LiteralText {
+    public $value;
+    public function __construct($value) {
+        $this->value = $value;
+    }
+}
 
 class Parser {
     public $tokens;
     public $pos = 0;
+    private $echo_tracker = 0;
     private $precedence = [
         '&' => 0,
         '|' => 0,
@@ -500,7 +529,7 @@ class Parser {
     private function expect($type, $value = null) {
         $token = $this->currentToken();
         if ($token->type !== $type || ($value !== null && $token->value !== $value)) {
-            echo ("Unexpected token: " . $token->type . " " . $token->value);
+            echo ("Unexpected token: " . $token->type . " " . $token->value );
             die;
         }
         $this->nextToken();
@@ -524,6 +553,10 @@ class Parser {
 
     private function parse_statement() {
         $token = $this->currentToken();
+        if ($token->type == 'TEXT') {
+            $this->nextToken();
+            return new LiteralText($token->value);
+        }
         if ($token->type === 'IDENTIFIER' && $this->tokens[$this->pos + 1]->type === 'EQUAL') {
             return $this->parse_set_statement();
         }
@@ -699,7 +732,7 @@ class Parser {
         $expression = $this->parse_expression();
         $token = $this->currentToken();
 
-        $echo_statement = new EchoStatement($expression, $token->position);
+        $echo_statement = new EchoStatement($expression, $token->position, $this->echo_tracker++);
         $this->expect('SEMI_COLON'); 
 
         return $echo_statement;
@@ -779,6 +812,9 @@ class Parser {
                     }
                 }
                 $this->nextToken();
+                if ($this->currentToken()->type == 'SEMI_COLON') {
+                    $this->nextToken();
+                }
                 return new FunctionCall($value, $args);
             }
             if ($this->currentToken()->type == 'OPEN_BRACKET') {
@@ -863,7 +899,7 @@ class Parser {
             return $expression;
         }
 
-        echo "Unexpected token type: " . $token->type . '\n';
+        echo "Unexpected token type: " . $token->type ;
         die;
     }
 }
@@ -960,67 +996,23 @@ class Interpreter {
     private $source_code;
     public $functions = [];
     public $variables = [];
-    private $echos = [];
-    private $echos_logged = 0;
-    private $data;
-    private $echo_tracker = 0;
+    private $internal_buffer = [];
 
     public function __construct($source_code) {
         $this->source_code = $source_code;
     }
 
     public function interpret() {
-        $pattern = "/<\?lumen([\s\S]*?)\?>/";
-        $data = [];
-        $collected_code = "";
-        if (preg_match_all($pattern, $this->source_code, $matches, PREG_OFFSET_CAPTURE)) {
-            foreach ($matches[0] as $match) {
-                $matchedString = $match[0];
-                $startPosition = $match[1];
-                $endPosition = $startPosition + strlen($matchedString);
-                $collected_code .= substr($matchedString, 7, -2) . PHP_EOL;
-                preg_match_all("/(?:echo [^;]*;)/", $matchedString, $number_of_echos, PREG_OFFSET_CAPTURE);
-                array_push($data, [$matchedString, $startPosition, $endPosition, count($number_of_echos[0]) ]);
-            }
+        $lexer = new Lexer($this->source_code);
+        $parser = new Parser($lexer);
+        $program = $parser->parse();
+        $optimizer = new Optimizer($program);
+        $this->program = $optimizer->optimize();
 
-            $lexer = new Lexer($collected_code);
-            $parser = new Parser($lexer);
-            $program = $parser->parse();
-            $optimizer = new Optimizer($program);
-            $this->program = $optimizer->optimize();
-            $this->data = $data;
-
-            foreach ($this->program->body as $statement) {
-                $this->execute_statement($statement);
-            }
-
-            foreach ($this->data as $dataItem) {
-                $startPosition = $dataItem[1];
-                $endPosition = $dataItem[2];
-                $replacement = "";
-                $loop = $this->echos[$startPosition] ?? [];
-                foreach ($loop as $value) {
-                    if (is_array($value)) {
-                        $replacement .= '[';
-                        $i = 0;
-                        foreach ($value as $val) {
-                            $replacement .= "$val";
-                            $i++;
-                            if ($i < count($value)) {
-                                $replacement .= ", ";
-                            }
-                        }
-                        $replacement .= ']';
-                    } else {
-                        $replacement .= "{$value}";
-                    }
-                }
-                $replacement = str_replace('\n', PHP_EOL, $replacement);
-                $escaped_pattern = preg_quote($dataItem[0], '/');
-                $this->source_code = preg_replace("/{$escaped_pattern}/", $replacement, $this->source_code);
-            }
+        foreach ($this->program->body as $statement) {
+            $this->execute_statement($statement);
         }
-        return $this->source_code;
+        return implode('',$this->internal_buffer);
     }
 
     private function execute_statement($statement) {
@@ -1034,21 +1026,26 @@ class Interpreter {
             $this->variables[$statement->name] = $this->evaluate_expression($statement->value);
         } elseif ($statement instanceof EchoStatement) {
             $value = $this->evaluate_expression($statement->expression);
-            while ($this->data[$this->echo_tracker][3] == 0) {
-                $this->echo_tracker += 1;
-            }
-            $echo_data = $this->data[$this->echo_tracker];
-            $start_value = $echo_data[1];
-            if (isset($this->echos[$start_value])) {
-                array_push($this->echos[$start_value], $value);
+            $buffered = "";
+            if (is_array($value)) {
+                $buffered .= '[';
+                $i = 0;
+                foreach ($value as $val) {
+                    $buffered .= "$val";
+                    $i++;
+                    if ($i < count($value)) {
+                        $buffered .= ", ";
+                    }
+                }
+                $buffered .= ']';
             } else {
-                $this->echos[$start_value] = [$value];
+                $buffered .= "{$value}";
             }
-            $this->echos_logged += 1;
-            if ($echo_data[3] == $this->echos_logged) {
-                $this->echo_tracker++;
-            }
-        } elseif ($statement instanceof LoopStatement) {
+            $buffered = str_replace('\n', PHP_EOL, $buffered);
+            $this->internal_buffer[] = $buffered;
+            } elseif ($statement instanceof LiteralText) {
+                $this->internal_buffer[] = $statement->value;
+            } elseif ($statement instanceof LoopStatement) {
             while ($this->evaluate_expression($statement->condition)) {
                 foreach ($statement->body as $statement_child) {
                     if ($statement_child instanceof BreakLoop) {
@@ -1167,8 +1164,8 @@ class Interpreter {
             $right = $this->evaluate_expression($expression->right);
             switch ($expression->operator) {
                 case Operation::Add:
-                    if (gettype($left) == 'string') {
-                        return $right . "$left";
+                    if (is_string($left) || is_string($right)) {
+                        return "$right" . "$left";
                     }
                     return $right + $left;
                 case Operation::Sub:
@@ -1301,3 +1298,4 @@ if (isset($argv[2])) {
 } else {
     echo ($interpreter->interpret());
 }
+

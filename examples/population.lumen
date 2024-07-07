@@ -1,0 +1,9 @@
+<?lumen
+
+let i = 0;
+loop i < 10 {
+    echo i + "\n";
+    i = i + 1;
+} 
+
+?>

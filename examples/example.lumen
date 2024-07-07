@@ -1,4 +1,7 @@
 <?lumen 
-let test_array = array(1,2,3,4,5);
-echo test_array[0:-2];
+345;
+"Hey";
+let b = 34;
+b;
+
 ?>
