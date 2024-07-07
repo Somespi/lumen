@@ -1,9 +1,26 @@
 <?lumen
 
-let i = 0;
-loop i < 10 {
-    echo i + "\n";
-    i = i + 1;
-} 
+let rabbits = 80;
+let foxes = 20;
 
+def simulate_population() {
+    let updated_rabbits = rabbits * 1.2;
+    let updated_foxes = foxes * 0.8;
+
+    foxes = updated_foxes;
+    rabbits = updated_rabbits;
+
+
+    echo "Yearly Population Update: \n";
+    echo "Rabbits: " + rabbits + "\n";
+    echo "Foxes:" + foxes + "\n"; 
+}
+
+let current_year = 1;
+let years = 5;
+loop current_year <= years {
+    echo "\nYear " + current_year + "\n";
+    simulate_population();
+    current_year = current_year + 1;
+}
 ?>

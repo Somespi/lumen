@@ -923,9 +923,10 @@ class Optimizer {
                 
             }  elseif ($statement instanceof LoopStatement) {
                 $this->program->body[$i] = $this->scoped_loop($statement);
-            } elseif ($statement instanceof FunctionDeclare) {
+            } elseif ($statement instanceof DeclareFunction) {
                 $this->program->body[$i] = $this->scoped_loop($statement);
             } elseif ($statement instanceof IfStatement) {
+
                 $this->program->body[$i] = $this->scoped_loop($statement);
                 $ii = 0;
                 foreach($statement->tryother as $elif) {
@@ -1265,10 +1266,11 @@ class Interpreter {
             echo "Incorrect number of arguments for function \"$name\".";
             die;
         }
-
+        $val = null;
+        
         $save_point_variables = $this->variables;
         $save_point_functions = $this->functions;
-
+        
         foreach ($function_object->args as $index => $arg) {
             $this->variables[$arg->value] = $this->evaluate_expression($args[$index]);
         }
@@ -1277,15 +1279,14 @@ class Interpreter {
             if (!$statement instanceof ReturnStatement) {
                 $this->execute_statement($statement);
             } else {
-                $val = $this->evaluate_expression($statement->value);
-                $this->variables = $save_point_variables;
-                $this->functions = $save_point_functions;
-                return $val ?? null;
+                $val = $this->evaluate_expression($statement->value) ?? null;
+                break;
             }
         }
-
-        $this->variables = $save_point_variables;
-        $this->functions = $save_point_functions;
+        foreach ($function_object->args as $index => $arg) {
+            unset($this->variables[$arg->value]);
+        }
+        return $val;
     }
 }
 
