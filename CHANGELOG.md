@@ -6,7 +6,7 @@
 **v0.1.3**:
 - Improved Echo's internal tokenization to be more efficient by using the same tokenization method as Lumen. Instead of relying on regex replacement, which is slower and harder to debug, we now use parsing. This change allows us to add an `internal_buffer`, enabling the program's output to be treated as a stack. As a result, we resolved the issue of Echo not working properly in loops and function calls.
 
-*v0.1.31*:
+**v0.1.31**:
 - Added `+=`, `-=`, `*=`, `/=` and `%=` for arithmetic operators
 - Added `|=` , `&=` and `^=` for bitwise operators
 - Added `~` operator for bitwise not
