@@ -1,7 +1,5 @@
 <?lumen 
-345;
-"Hey";
-let b = 34;
-b;
-
+let b = 23;
+b += 17;
+echo b;
 ?>

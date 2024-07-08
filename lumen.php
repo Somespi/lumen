@@ -52,7 +52,6 @@ class Lexer {
                         $this->push_token("EQUAL", $this->char());
                         $this->pos++;
                     }
-                    $this->pos++;
                 } elseif ($char == '(') {
                     $this->push_token("OPEN_PAREN", $this->char());
                     $this->pos++;
@@ -71,12 +70,20 @@ class Lexer {
                 } elseif ($char == '[') {
                     $this->push_token("OPEN_BRACKET", $this->char());
                     $this->pos++;
+                } elseif ($char == '~') {
+                    $this->push_token("NEGATION", $this->char());
+                    $this->pos++;
                 } elseif ($char == ']') {
                     $this->push_token("CLOSE_BRACKET", $this->char());
                     $this->pos++;
                 } elseif ($char == '%') {
-                    $this->push_token("OPERATOR", $this->char());
-                    $this->pos++;
+                    if ($this->source[$this->pos + 1] == '=') {
+                        $this->pos+=2;
+                        $this->push_token("ASSIGN_OPERATOR", "%=");
+                    } else {
+                        $this->push_token("OPERATOR", $this->char());
+                        $this->pos++;
+                    }
                 } elseif ($char == ';') {
                     $this->push_token("SEMI_COLON", $this->char());
                     $this->pos++;
@@ -90,17 +97,37 @@ class Lexer {
                     $this->push_token("QUESTION_MARK", $this->char());
                     $this->pos++;
                 }elseif ($char == '+') {
-                    $this->push_token("OPERATOR", $this->char());
-                    $this->pos++;
+                    if ($this->source[$this->pos + 1] == '=') {
+                        $this->pos+=2;
+                        $this->push_token("ASSIGN_OPERATOR", "+=");
+                    } else {
+                        $this->push_token("OPERATOR", $this->char());
+                        $this->pos++;
+                    }
                 }elseif ($char == '-') {
-                    $this->push_token("OPERATOR", $this->char());
-                    $this->pos++;
+                    if ($this->source[$this->pos + 1] == '=') {
+                        $this->pos+=2;
+                        $this->push_token("ASSIGN_OPERATOR", "-=");
+                    } else {
+                        $this->push_token("OPERATOR", $this->char());
+                        $this->pos++;
+                    }
                 }elseif ($char == '*') {
-                    $this->push_token("OPERATOR", $this->char());
-                    $this->pos++;
+                    if ($this->source[$this->pos + 1] == '=') {
+                        $this->pos+=2;
+                        $this->push_token("ASSIGN_OPERATOR", "*=");
+                    } else {
+                        $this->push_token("OPERATOR", $this->char());
+                        $this->pos++;
+                    }
                 }elseif ($char == '/') {
-                    $this->push_token("OPERATOR", $this->char());
-                    $this->pos++;
+                    if ($this->source[$this->pos + 1] == '=') {
+                        $this->pos+=2;
+                        $this->push_token("ASSIGN_OPERATOR", "/=");
+                    } else {
+                        $this->push_token("OPERATOR", $this->char());
+                        $this->pos++;
+                    }
                 } elseif ($char == '!') {
                     if ($this->source[$this->pos + 1] == '=') {
                         $this->pos+=2;
@@ -114,7 +141,12 @@ class Lexer {
                     if ($this->source[$this->pos + 1] == '&') {
                         $this->pos+=2;
                         $this->push_token("OPERATOR", "&&");
-                    } else {
+                    } 
+                    elseif ($this->source[$this->pos + 1] == '=') {
+                        $this->pos+=2;
+                        $this->push_token("ASSIGN_OPERATOR", "&=");
+                    }
+                    else {
                         $this->push_token("OPERATOR", $this->char());
                         $this->pos++;
                     }
@@ -123,6 +155,9 @@ class Lexer {
                     if ($this->source[$this->pos + 1] == '|') {
                         $this->pos+=2;
                         $this->push_token("OPERATOR", "||");
+                    } elseif ($this->source[$this->pos + 1] == '=') {
+                        $this->pos+=2;
+                        $this->push_token("ASSIGN_OPERATOR", "|=");
                     } else {
                         $this->push_token("OPERATOR", $this->char());
                         $this->pos++;
@@ -241,6 +276,18 @@ class DeclareVariable {
         $this->name = $name;
         $this->value = $value;
         $this->pos = $pos;
+    }
+}
+
+class AugAssign {
+    public $name;
+    public $operator; 
+    public $value;
+
+    public function __construct($name, $operator, $value) {
+        $this->name = $name;
+        $this->value = $value;
+        $this->operator = $operator;
     }
 }
 
@@ -401,6 +448,7 @@ enum Unary
 {
     case Not;
     case Minus;
+    case Negate;
 }
 enum Operation
 {
@@ -512,6 +560,18 @@ class Parser {
     private $unary = [
         '!' => Unary::Not,
         '-' => Unary::Minus,
+        '~' => Unary::Negate
+    ];
+
+    private $operators = [
+    '+' => Operation::Add,
+    '-' => Operation::Sub,
+    '/' => Operation::Div,
+    '*' => Operation::Mult,
+    '%' => Operation::Modulo,
+    '&' => Operation::BitAnd,
+    '|' => Operation::BitOr
+
     ];
 
     public function __construct(Lexer $lexer_object) {
@@ -559,7 +619,10 @@ class Parser {
         }
         if ($token->type === 'IDENTIFIER' && $this->tokens[$this->pos + 1]->type === 'EQUAL') {
             return $this->parse_set_statement();
+        } elseif ($token->type === 'IDENTIFIER' && $this->tokens[$this->pos + 1]->type === 'ASSIGN_OPERATOR') {
+            return $this->parse_argumented_assign();
         }
+
         if ($token->type === 'KEYWORD') {
             switch ($token->value) {
                 case 'echo':
@@ -602,6 +665,26 @@ class Parser {
         $token = $this->currentToken();
 
         $var_reassign = new AssignVariable($name, $value);
+        $this->expect('SEMI_COLON'); 
+
+        return $var_reassign;
+    }
+
+    private function parse_argumented_assign() {
+        if ($this->currentToken()->type == 'KEYWORD' && $this->currentToken()->value == 'set') {
+            $this->nextToken();
+        } elseif ($this->currentToken()->type == 'KEYWORD' && $this->currentToken()->value != 'set') {
+            echo "Unexpected token: " . $this->currentToken()->type;
+            die;
+        }
+        $name = $this->currentToken()->value;
+        $this->expect('IDENTIFIER');
+
+        $operator = $this->currentToken();
+        $this->expect('ASSIGN_OPERATOR');
+
+        $value = $this->parse_expression();
+        $var_reassign = new AugAssign($name,$this->operators[$operator->value[0]],  $value);
         $this->expect('SEMI_COLON'); 
 
         return $var_reassign;
@@ -783,6 +866,10 @@ class Parser {
             $this->nextToken();
             $operand = $this->parse_primary_expression();
             return new UnaryOperation(Unary::Not, $operand); 
+        } elseif ($token->type === 'NEGATE') {
+            $this->nextToken();
+            $operand = $this->parse_primary_expression();
+            return new UnaryOperation(Unary::Negate, $operand); 
         }
         if ($token->type === 'STRING') {
             $value = $token->value;
@@ -1052,7 +1139,7 @@ class Interpreter {
                     if ($statement_child instanceof BreakLoop) {
                         break;
                     } elseif ($statement_child instanceof ContinueLoop) {
-                        continue 2;
+                        continue;
                     } else {
                         $this->execute_statement($statement_child);
                     }
@@ -1065,6 +1152,14 @@ class Interpreter {
                 die;
             }
             $this->variables[$name] = $this->evaluate_expression($statement->value);
+        }
+        elseif ($statement instanceof AugAssign) {
+            $name = $statement->name;
+            if (!isset($this->variables[$name])) {
+                echo "Assigning into undeclared variable.";
+                die;
+            }
+            $this->variables[$name] = $this->evaluate_expression(new BinaryOperation(new Identifier($statement->name), $statement->operator, $statement->value));
         } elseif ($statement instanceof BreakLoop) {
             echo "Use of break outside of a loop is illegal.";
             die;
