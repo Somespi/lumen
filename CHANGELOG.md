@@ -10,3 +10,7 @@
 - Added `+=`, `-=`, `*=`, `/=` and `%=` for arithmetic operators
 - Added `|=` , `&=` and `^=` for bitwise operators
 - Added `~` operator for bitwise not
+- Added Objects with `class` keyword and `inclass` keyword for Inclassed Functions. 
+- Rename past import to `include`, and adding `import` keyword as a seperate statement for Lumen script importing. 
+- Added  `cos`, `sin`, `tan`, `acos`, `asin`, `Pi`, `E` , `round`, `floor`, `ceil`, `abs`, `sqrt` to Standard Library for mathematical operations.
+- Added `len`, `range`, `sum`, `min`, `max` to Standard Library for array operations.

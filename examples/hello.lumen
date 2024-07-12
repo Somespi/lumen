@@ -1,9 +1,7 @@
 <?lumen 
 
-def great(name) {
-    return "Hello \n" + name;
+def greet(export, name) {
+    echo "Hello " + name;
 }
-
-echo great("Joe");
 
 ?>

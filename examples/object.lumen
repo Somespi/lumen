@@ -1,0 +1,19 @@
+<?lumen
+  class Person {
+    let name = none;
+    let age = 34;
+
+    inclass def init(self, name) {
+      self.name = name;
+    }
+
+    def greet(self) {
+      echo "Hello " + self.name;
+    }
+  }
+
+  let alex = Person("Alex");
+  let joe = Person("Joe");
+  echo alex.name + "\n";
+  joe.greet();
+?>

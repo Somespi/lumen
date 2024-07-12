@@ -1,5 +1,5 @@
 <?lumen 
-let b = 23;
-b += 17;
-echo b;
+
+    let mymodule = import "./hello";
+    mymodule.greet("Alex");
 ?>

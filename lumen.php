@@ -1,6 +1,9 @@
 <?php
 
-$keywords = ['let', 'if', 'else', 'elif', 'del', 'die', 'loop', 'none', 'def', 'return', 'echo', 'break', 'continue', 'set', 'import'];
+$keywords = ['let', 'if', 'else', 'elif', 'del',
+            'die','as', 'loop', 'none', 'def',
+            'return', 'echo', 'break', 'class', 
+            'inclass', 'continue', 'set', 'include', 'import'];
 
 class Token {
     public $type;
@@ -163,7 +166,6 @@ class Lexer {
                         $this->pos++;
                     }
                 }
-    
                 elseif ($char == '<') {
                     if ($this->source[$this->pos + 1] == '=') {
                         $this->pos+=2;
@@ -180,7 +182,12 @@ class Lexer {
                         $this->push_token("OPERATOR", $this->char());
                         $this->pos++;
                     }
-                } elseif (empty(trim($char))) {
+                }
+                elseif ($char == '.') {
+                    $this->push_token("PERIOD", $this->char());
+                    $this->pos++;
+                }
+                elseif (empty(trim($char))) {
                     $this->pos++;
                 }
                 
@@ -299,17 +306,39 @@ class DeleteVariable {
     }
 }
 
+class ObjectDeclare {
+    public $name;
+    public $body = [];
+    public function __construct($name, $body) {
+        $this->name = $name;
+        $this->body = $body;
+    }
+}
+
 class DeclareFunction {
     public $name;
     public $args;
     public $body;
+    public $inclass;
 
-    public function __construct($name, $args, $body) {
+    public function __construct($name, $args, $body, $inclass = FALSE) {
         $this->name = $name;
         $this->args = $args;
         $this->body = $body;
+        $this->inclass = $inclass;
     }
 }
+
+class MemberAccess {
+    public $object;
+    public $property;
+    
+    public function __construct($object, $property) {
+        $this->object = $object;
+        $this->property = $property;
+    }
+}
+
 
 class FunctionCall {
     public $name;
@@ -360,11 +389,20 @@ class Identifier {
     }
 }
 
-class Import {
+class IncludeStatement {
     public $filepath;
 
     public function __construct($filepath) {
         $this->filepath = $filepath;
+    }
+}
+
+class ImportStatement {
+    public $filepath;
+    #public $alias;
+    public function __construct($filepath) {
+        $this->filepath = $filepath;
+        #$this->alias = $alias;
     }
 }
 
@@ -501,10 +539,10 @@ class LoopStatement {
 }
 
 class AssignVariable {
-    public $name;
+    public $left;
     public $value;
     public function __construct($name, $value) {
-        $this->name = $name;
+        $this->left = $name;
         $this->value = $value;
     }
 }
@@ -589,7 +627,7 @@ class Parser {
     private function expect($type, $value = null) {
         $token = $this->currentToken();
         if ($token->type !== $type || ($value !== null && $token->value !== $value)) {
-            echo ("Unexpected token: " . $token->type . " " . $token->value );
+            echo ("Unexpected token: " . $token->type . ", Expected: " . $type . " " . $value);
             die;
         }
         $this->nextToken();
@@ -613,15 +651,16 @@ class Parser {
 
     private function parse_statement() {
         $token = $this->currentToken();
+
         if ($token->type == 'TEXT') {
             $this->nextToken();
             return new LiteralText($token->value);
         }
-        if ($token->type === 'IDENTIFIER' && $this->tokens[$this->pos + 1]->type === 'EQUAL') {
-            return $this->parse_set_statement();
-        } elseif ($token->type === 'IDENTIFIER' && $this->tokens[$this->pos + 1]->type === 'ASSIGN_OPERATOR') {
-            return $this->parse_argumented_assign();
-        }
+        #if ($token->type === 'IDENTIFIER' && $this->tokens[$this->pos + 1]->type === 'EQUAL') {
+            
+        // } elseif ($token->type === 'IDENTIFIER' && $this->tokens[$this->pos + 1]->type === 'ASSIGN_OPERATOR') {
+        //     return $this->parse_argumented_assign();
+        // }
 
         if ($token->type === 'KEYWORD') {
             switch ($token->value) {
@@ -643,24 +682,28 @@ class Parser {
                     return $this->parse_del();
                 case 'def':
                     return $this->parse_function_defination();
+                case 'inclass':
+                    $this->nextToken();
+                    return $this->parse_function_defination(TRUE);
+                case 'class':
+                    return $this->parse_object();
                 case 'die':
                     return $this->parse_die();
-                case 'import':
-                    return $this->parse_import();
+                case 'include':
+                    return $this->parse_include();
             }
         }
     
         return $this->parse_expression();
     }
+
     private function parse_set_statement() {
         if ($this->currentToken()->type == 'KEYWORD') {
             $this->nextToken();
         }
-        $name = $this->currentToken()->value;
-        $this->expect('IDENTIFIER');
+        $left = $this->parse_primary_expression();
 
         $this->expect('EQUAL');
-
         $value = $this->parse_expression();
         $token = $this->currentToken();
 
@@ -695,7 +738,7 @@ class Parser {
         $this->expect('SEMI_COLON');
         return new Kill();
     }
-    private function parse_function_defination() {
+    private function parse_function_defination($is_inclass=FALSE) {
         $this->expect('KEYWORD', 'def');
         $token = $this->currentToken();
         if ($token->type !== "IDENTIFIER") {
@@ -729,7 +772,7 @@ class Parser {
             $body[] = $this->parse_statement();
         }
         $this->expect('CLOSE_CURLY');
-        return new DeclareFunction($name, $args, $body);
+        return new DeclareFunction($name, $args, $body, $is_inclass);
     }
 
     private function parse_return_statement() {
@@ -740,14 +783,15 @@ class Parser {
         return new ReturnStatement($value);
     }
 
-    private function parse_import() {
-        $this->expect('KEYWORD', 'import');
+    private function parse_include() {
+        $this->expect('KEYWORD', 'include');
         $value = $this->parse_expression();
         $this->expect('SEMI_COLON');
-        
-        return new Import($value);
+
+        return new IncludeStatement($value);
     }
-    
+
+
     private function parse_loop_statement() {
         $this->expect('KEYWORD', 'loop');
         $condition = $this->parse_expression();
@@ -760,6 +804,24 @@ class Parser {
         $this->expect('CLOSE_CURLY');
         
         return new LoopStatement($condition, $body, $this->currentToken()->position);
+    }
+
+    private function parse_object() {
+        $this->expect('KEYWORD', 'class');
+        $name = $this->parse_expression();
+        if (!$name instanceof Identifier) {
+            echo 'Expected Identifier after object, not ' . $name . '.';
+            die;
+        }
+        $this->expect('OPEN_CURLY');
+
+        $body = [];
+        while ($this->currentToken()->type !== 'CLOSE_CURLY') {
+            $body[] = $this->parse_statement();
+        }
+        $this->expect('CLOSE_CURLY');
+        
+        return new ObjectDeclare($name, $body);
     }
     
 
@@ -833,6 +895,7 @@ class Parser {
         $token = $this->currentToken();
 
         $var_declaration = new DeclareVariable($name, $value, $token->position);
+        
         $this->expect('SEMI_COLON'); 
 
         return $var_declaration;
@@ -856,6 +919,7 @@ class Parser {
     }
 
     private function parse_primary_expression() {
+
         $token = $this->currentToken();
 
         if ($token->value === '-') {
@@ -883,9 +947,49 @@ class Parser {
             $this->nextToken();
             return new None();
         } elseif ($token->type === 'IDENTIFIER') {
-            $value = $token->value;
+            $ident = $this->parse_identifier();
+
+            if ($this->currentToken()->type == 'EQUAL' && !$ident instanceof FunctionCall) { 
+                $this->expect('EQUAL');
+                $value = $this->parse_expression();
+                $var_reassign = new AssignVariable($ident, $value);
+                $this->expect('SEMI_COLON'); 
+                return $var_reassign;
+            }
+
+            return $ident;
+
+
+        } elseif ($token->type === 'OPEN_PAREN') {
             $this->nextToken();
-            if ($this->currentToken()->type == 'OPEN_PAREN') {
+            $expression = $this->parse_expression();
+            $this->expect('CLOSE_PAREN');
+            return $expression;
+            
+        } elseif ($token->value === 'import') {
+            $this->expect('KEYWORD', 'import');
+            $filepath = $this->parse_expression();
+            return new ImportStatement($filepath);
+        }
+        echo "Unexpected token type: " . $token->type ;
+        die;
+
+    }
+
+    private function parse_identifier() {
+        $token = $this->currentToken();
+        $value = $token->value;
+            $ident = new Identifier($value);
+            $this->nextToken();
+            if ($this->currentToken()->type == 'PERIOD') {
+                $this->nextToken();
+                $object = new MemberAccess(new Identifier($value), $this->parse_identifier());
+                if ($this->currentToken()->type == 'CLOSE_PAREN') {
+                    $this->nextToken();
+                }
+                $ident = $object;
+            }
+            elseif ($this->currentToken()->type == 'OPEN_PAREN') {
                 $args = [];
                 $this->nextToken();
                 while ($this->currentToken()->type != 'CLOSE_PAREN' && $this->currentToken()->type != "EOF") {
@@ -899,12 +1003,9 @@ class Parser {
                     }
                 }
                 $this->nextToken();
-                if ($this->currentToken()->type == 'SEMI_COLON') {
-                    $this->nextToken();
-                }
-                return new FunctionCall($value, $args);
+                $ident = new FunctionCall($value, $args);
             }
-            if ($this->currentToken()->type == 'OPEN_BRACKET') {
+            elseif ($this->currentToken()->type == 'OPEN_BRACKET') {
                 $lower = null;
                 $upper = null;
                 $steps = null;
@@ -975,19 +1076,10 @@ class Parser {
                     $step = new NumberLiteral('1');
                 }
                 $this->nextToken();
-                return new Subscript(new Identifier($value), new Slice($start, $stop, $step));
+                $ident = new Subscript(new Identifier($value), new Slice($start, $stop, $step));
 
             }
-            return new Identifier($value);
-        } elseif ($token->type === 'OPEN_PAREN') {
-            $this->nextToken();
-            $expression = $this->parse_expression();
-            $this->expect('CLOSE_PAREN');
-            return $expression;
-        }
-
-        echo "Unexpected token type: " . $token->type ;
-        die;
+            return $ident;
     }
 }
 
@@ -1065,6 +1157,16 @@ class FunctionObject {
     }
 }
 
+class ObjectType {
+    public $name;
+    public $properties;
+
+    public function __construct($name, $properties) {
+        $this->name = $name;
+        $this->properties = $properties;
+    }
+}
+
 class StdLib {
     public function pow($base, $exponent) {
         return pow($base, $exponent);
@@ -1074,29 +1176,96 @@ class StdLib {
         return pi();
     }
 
+    public function E() {
+        return exp(1);
+    }
     public function array(...$items) {
         return $items;
     }
+
+    public function len(...$items) {
+        return count($items[0]);
+    }
+
+    public function range($start, $stop, $step = 1) {
+        return range($start, $stop, $step);
+    }
+
+    public function sum(...$items) {
+        return array_sum($items[0]);
+    }
+
+    public function min(...$items) {
+        return min($items[0]);
+    }
+
+    public function max(...$items) {
+        return max($items[0]);
+    }
+
+    public function abs($value) {
+        return abs($value);
+    }
+
+    public function floor($value) {
+        return floor($value);
+    }
+
+    public function ceil($value) {
+        return ceil($value);
+    }  
+
+    public function round($value) {
+        return round($value);
+    }
+
+    public function sqrt($value) {
+        return sqrt($value);
+    }
+
+    public function sin($value) {
+        return sin($value);
+    }
+
+    public function cos($value) {
+        return cos($value);
+    }
+
+    public function tan($value) {
+        return tan($value);
+    }
+
+    public function asin($value) {
+        return asin($value);
+    }   
+
+    public function acos($value) {
+        return acos($value);
+    }
+
 }
 
 class Interpreter {
     private $program;
     private $source_code;
-    public $functions = [];
     public $variables = [];
+    public $filepath;
+    public $current_dir;
     private $internal_buffer = [];
 
     public function __construct($source_code) {
         $this->source_code = $source_code;
     }
 
-    public function interpret() {
+    public function interpret($filepath) {
+        $this->filepath =  realpath($filepath);
+        $this->current_dir = dirname($this->filepath);
         $lexer = new Lexer($this->source_code);
         $parser = new Parser($lexer);
         $program = $parser->parse();
         $optimizer = new Optimizer($program);
         $this->program = $optimizer->optimize();
-
+        
         foreach ($this->program->body as $statement) {
             $this->execute_statement($statement);
         }
@@ -1126,32 +1295,72 @@ class Interpreter {
                     }
                 }
                 $buffered .= ']';
+            } elseif (is_object($value)) {
+                $buffered .= "<" . get_class($value) . " '{$value->name->value}' >"; 
             } else {
                 $buffered .= "{$value}";
             }
             $buffered = str_replace('\n', PHP_EOL, $buffered);
             $this->internal_buffer[] = $buffered;
-            } elseif ($statement instanceof LiteralText) {
-                $this->internal_buffer[] = $statement->value;
-            } elseif ($statement instanceof LoopStatement) {
-            while ($this->evaluate_expression($statement->condition)) {
-                foreach ($statement->body as $statement_child) {
-                    if ($statement_child instanceof BreakLoop) {
-                        break;
-                    } elseif ($statement_child instanceof ContinueLoop) {
-                        continue;
-                    } else {
-                        $this->execute_statement($statement_child);
-                    }
+        }
+        elseif ($statement instanceof LiteralText) {
+            $this->internal_buffer[] = $statement->value;
+        }
+
+        elseif ($statement instanceof ObjectDeclare) {
+            $name = $statement->name;
+
+            $old_vars = $this->variables;
+            $new_vars = [];
+            foreach ($statement->body as $statement_child) {
+                if ($statement_child instanceof DeclareFunction || $statement_child instanceof DeclareVariable) {
+                    $this->execute_statement($statement_child);
+                } else {
+                    echo "Invalid statement in object declaration, got: " . get_class($statement_child);
+                    die;
                 }
             }
-        } elseif ($statement instanceof AssignVariable) {
-            $name = $statement->name;
-            if (!isset($this->variables[$name])) {
-                echo "Assigning into undeclared variable.";
+            $properties = array_diff_key($this->variables, $old_vars);
+            foreach ($properties as $key => $value) {
+                unset($this->variables[$key]);
+            }
+
+            $this->variables[$statement->name->value] = new ObjectType($name, $properties);
+        }
+        elseif ($statement instanceof LoopStatement) {
+                while ($this->evaluate_expression($statement->condition)) {
+                    foreach ($statement->body as $statement_child) {
+                        if ($statement_child instanceof BreakLoop) {
+                            break;
+                        } elseif ($statement_child instanceof ContinueLoop) {
+                            continue;
+                        } else {
+                            $this->execute_statement($statement_child);
+                        }
+                    }
+                }
+        } 
+        elseif ($statement instanceof AssignVariable) {
+        if ($statement->left instanceof Identifier) {
+                $name = $this->evaluate_expression($statement->left);
+                if (!isset($this->variables[$name])) {
+                    echo "Assigning into undeclared variable.";
+                    die;
+                }
+                $this->variables[$name] = $this->evaluate_expression($statement->value);
+                
+            } elseif ($statement->left instanceof MemberAccess) {
+                $object = $this->evaluate_expression($statement->left->object);
+                $name = $this->evaluate_expression($statement->left->property);
+                $this->variables[$statement->left->object->value][$statement->left->property->value] = $this->evaluate_expression($statement->value);
+            } elseif ($statement->left instanceof Subscript && $statement->left->slice instanceof Index) {
+                $left = $this->evaluate_expression($statement->identifier);
+                $index = $this->evaluate_expression($statement->slice->value);
+                $this->variables[$left][$index] = $this->evaluate_expression($statement->value);
+            } else {
+                echo "Invalid assignment.";
                 die;
             }
-            $this->variables[$name] = $this->evaluate_expression($statement->value);
         }
         elseif ($statement instanceof AugAssign) {
             $name = $statement->name;
@@ -1166,18 +1375,11 @@ class Interpreter {
         } elseif ($statement instanceof ContinueLoop) {
             echo "Use of continue outside of a loop is illegal.";
             die;
-        } elseif ($statement instanceof Import) {
-            $source = file_get_contents($this->evaluate_expression($statement->filepath));
+        } elseif ($statement instanceof IncludeStatement) {
+            $source = file_get_contents($this->current_dir . '/' . $this->evaluate_expression($statement->filepath)) or die('Failed to open file: ' . $this->current_dir . '/' . $this->evaluate_expression($statement->filepath));
             $inside_interpreter = new Interpreter($source);
-            $inside_interpreter->interpret();
-            foreach ($inside_interpreter->variables as $key => $value) {
-                $this->variables[$key] = $value;
-            }
-            foreach ($inside_interpreter->functions as $key => $value) {
-                $this->functions[$key] = $value;
-            }
-        }
-        elseif ($statement instanceof IfStatement) {
+            $this->internal_buffer[] = $inside_interpreter->interpret($this->current_dir . '/' . $this->evaluate_expression($statement->filepath));
+        }  elseif ($statement instanceof IfStatement) {
             $condition = $this->evaluate_expression($statement->condition);
             if ($condition) {
                 foreach ($statement->body as $statement_child) {
@@ -1211,7 +1413,8 @@ class Interpreter {
             $name = $statement->name;
             $args = $statement->args;
             $body = $statement->body;
-            $this->functions[$name->value] = new FunctionObject($name, $args, $body, [$this->variables, $this->functions]);
+
+            $this->variables[$name->value] = new FunctionObject($name, $args, $body, [$this->variables, []]);
 
         } else {
             $this->evaluate_expression($statement);
@@ -1219,6 +1422,22 @@ class Interpreter {
     }
 
     private function evaluate_expression($expression) {
+        if ($expression instanceof ImportStatement) {
+            $file = $this->evaluate_expression($expression->filepath);
+            if (!str_ends_with($file, '.lumen')) {
+                $file = $file . '.lumen';
+            }
+            if (!file_exists($this->current_dir . '/' . $file)) {
+                echo "File not found: " . $this->current_dir . '/' . $file;
+                die;
+            }
+            $source = file_get_contents($this->current_dir . '/' . $file) or die('Failed to open file: ' . $this->current_dir . '/' . $file);
+            $inside_interpreter = new Interpreter($source);
+            $inside_interpreter->interpret($this->current_dir . '/' . $file);
+            $new_import_object = new ObjectType(md5($file), $inside_interpreter->variables);
+            return $new_import_object;
+        }
+
         if ($expression instanceof NumberLiteral) {
             return (float)$expression->value;
         } if ($expression instanceof None) {
@@ -1235,14 +1454,41 @@ class Interpreter {
                 }
                 
                 return call_user_func_array([new StdLib(), $expression->name], $args);
+            } 
+            if ($this->variables[$expression->name] instanceof ObjectType) {
+                return $this->call_object($expression);
             }
-            return $this->call_function($expression);
+            if (!array_key_exists($expression->name, $this->variables)) {
+                echo "Found call for undeclared function \"" . $expression->name . "\".";
+                die;
+            }
+            return $this->call_function($this->variables[$expression->name], $expression->args);
         }
+        if ($expression instanceof MemberAccess) {
+
+            $object = $this->evaluate_expression($expression->object);
+
+            if ($expression->property instanceof FunctionCall) {
+                return $this->call_function($object->properties[$expression->property->name], array_merge([$object->properties], $expression->property->args), TRUE, $object->properties);
+            }
+            // if (!array_key_exists($expression->property->value, $object->properties)) {
+            //     echo "Found undeclared property \"" . $expression->property->value . "\".";
+            //     die;
+            // }
+            if (($object instanceof ObjectType)) {
+                return $object->properties[$expression->property->value];
+            } else {
+                return $object[$expression->property->value];
+
+            }
+        }
+
         if ($expression instanceof Identifier) {
             if (!array_key_exists($expression->value, $this->variables)) {
                 echo "Found undeclared identifier \"" . $expression->value . "\".";
                 die;
             }
+
             return $this->variables[$expression->value];
         }
         if ($expression instanceof BoolOp) {
@@ -1353,45 +1599,79 @@ class Interpreter {
         }
     }
 
-    private function call_function($stat) {
-        $name = $stat->name;
-        $args = $stat->args;
-        $function_object = $this->functions[$name];
+    private function call_function($function, $args, $can_return=TRUE, &$self = null) {
+
+        $function_object = $function;
         if (count($args) !== count($function_object->args)) {
-            echo "Incorrect number of arguments for function \"$name\".";
+            echo "Incorrect number of arguments for function.";
             die;
         }
         $val = null;
         
         $save_point_variables = $this->variables;
-        $save_point_functions = $this->functions;
         
         foreach ($function_object->args as $index => $arg) {
-            $this->variables[$arg->value] = $this->evaluate_expression($args[$index]);
+            $this->variables[$arg->value] = ($arg->value == 'self' ? $args[$index] : $this->evaluate_expression($args[$index])) ;
         }
+
 
         foreach ($function_object->body as $statement) {
             if (!$statement instanceof ReturnStatement) {
-                $this->execute_statement($statement);
-            } else {
+                    $this->execute_statement($statement);
+                } else {
+                if (!$can_return) {
+                    echo "Function cannot have a return value.";
+                    die;
+                }
                 $val = $this->evaluate_expression($statement->value) ?? null;
                 break;
             }
+        }
+        if (!is_null($self)) {
+            $self = $this->variables[$function_object->args[0]->value];
         }
         foreach ($function_object->args as $index => $arg) {
             unset($this->variables[$arg->value]);
         }
         return $val;
     }
+
+    private function call_object($object) {
+        $name = $object->name;
+        $args = $object->args;
+
+        $object_def = clone $this->variables[$name];
+        if (!isset($object_def)) {
+            echo "Object \"$name\" is not defined.";
+            die;
+        }
+    
+        if (isset($args) && isset($object_def->properties['init'])) {
+            $init_method = $object_def->properties['init'];
+            if (count($args) + 1 !== count($init_method->args)) {
+                echo "Incorrect number of arguments for object construction \"$name\".";
+                die;
+            }
+                if (count($init_method->args) >= 1 && $init_method->args[0]->value !== 'self') {
+                echo "Object construction \"$name\" requires at least one argument named self.";
+                die;
+            }
+            
+            $args = array_merge([&$object_def->properties], $args);
+            $this->call_function($init_method, $args, FALSE, $object_def->properties);
+        }
+        return $object_def;
+    }
+    
 }
 
 
 
 $interpreter = new Interpreter(file_get_contents($argv[1]));
 if (isset($argv[2])) {
-    file_put_contents($argv[2], ($interpreter->interpret())) or die("Unable to write the file.");
+    file_put_contents($argv[2], ($interpreter->interpret($argv[1]))) or die("Unable to write the file.");
 
 } else {
-    echo ($interpreter->interpret());
+    echo ($interpreter->interpret($argv[1]));
 }
 
