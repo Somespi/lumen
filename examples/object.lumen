@@ -1,10 +1,11 @@
 <?lumen
   class Person {
-    let name = none;
+    let name = 'person';
     let age = 34;
 
     inclass def init(self, name) {
       self.name = name;
+      echo "Class Initialised." + "\n";
     }
 
     def greet(self) {
@@ -13,7 +14,6 @@
   }
 
   let alex = Person("Alex");
-  let joe = Person("Joe");
+
   echo alex.name + "\n";
-  joe.greet();
 ?>

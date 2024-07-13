@@ -1,7 +1,7 @@
 <?lumen 
-
-def greet(export, name) {
-    echo "Hello " + name;
+let name = "sam";
+def greet(name) {
+    print("Hello " + name);
 }
 
 ?>

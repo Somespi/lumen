@@ -1,5 +1,7 @@
 <?lumen 
+    let mymodule = import "hello";
 
-    let mymodule = import "./hello";
-    mymodule.greet("Alex");
+    mymodule.greet("Test");
+    
+    echo mymodule.name;
 ?>

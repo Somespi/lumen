@@ -694,7 +694,9 @@ class Parser {
             }
         }
     
-        return $this->parse_expression();
+        $expr = $this->parse_expression();
+        $this->expect('SEMI_COLON');
+        return $expr;
     }
 
     private function parse_set_statement() {
@@ -956,7 +958,7 @@ class Parser {
                 $this->expect('SEMI_COLON'); 
                 return $var_reassign;
             }
-
+            
             return $ident;
 
 
@@ -984,16 +986,14 @@ class Parser {
             if ($this->currentToken()->type == 'PERIOD') {
                 $this->nextToken();
                 $object = new MemberAccess(new Identifier($value), $this->parse_identifier());
-                if ($this->currentToken()->type == 'CLOSE_PAREN') {
-                    $this->nextToken();
-                }
                 $ident = $object;
             }
             elseif ($this->currentToken()->type == 'OPEN_PAREN') {
                 $args = [];
                 $this->nextToken();
                 while ($this->currentToken()->type != 'CLOSE_PAREN' && $this->currentToken()->type != "EOF") {
-                    array_push($args, $this->parse_expression($this->currentToken()->value));
+                    array_push($args, $this->parse_expression());
+                    
                     if ($this->currentToken()->type !== "COMMA" && $this->currentToken()->type !== "CLOSE_PAREN" ) {
                         echo ("Unexpected token: " . $this->currentToken()->type);
                         die;
@@ -1098,7 +1098,7 @@ class Optimizer {
             if ($statement instanceof DeclareVariable) {
                 array_push($scope, $statement->name);
             } elseif ($statement instanceof DeleteVariable) {
-                $scope = array_diff($scope,[$statement->name]);
+                $scope = array_diff($scope,[$statement->name->value]);
                 
             }  elseif ($statement instanceof LoopStatement) {
                 $this->program->body[$i] = $this->scoped_loop($statement);
@@ -1160,10 +1160,12 @@ class FunctionObject {
 class ObjectType {
     public $name;
     public $properties;
+    public $interpreter;
 
-    public function __construct($name, $properties) {
+    public function __construct($name, $properties, $interpreter = null) {
         $this->name = $name;
         $this->properties = $properties;
+        $this->interpreter = $interpreter;
     }
 }
 
@@ -1243,36 +1245,46 @@ class StdLib {
         return acos($value);
     }
 
+    public function atan($value) {
+        return atan($value);
+    }
+
+    public function print($value) {
+        echo $value . PHP_EOL;
+    }
+
 }
 
 class Interpreter {
     private $program;
     private $source_code;
     public $variables = [];
+    public $unoptimised_program;
     public $filepath;
     public $current_dir;
     private $internal_buffer = [];
 
-    public function __construct($source_code) {
+    public function __construct($source_code, $filepath) {
         $this->source_code = $source_code;
-    }
-
-    public function interpret($filepath) {
         $this->filepath =  realpath($filepath);
         $this->current_dir = dirname($this->filepath);
         $lexer = new Lexer($this->source_code);
         $parser = new Parser($lexer);
         $program = $parser->parse();
         $optimizer = new Optimizer($program);
+        $this->unoptimised_program = clone $optimizer->program;
         $this->program = $optimizer->optimize();
         
+    }
+
+    public function interpret() {
         foreach ($this->program->body as $statement) {
             $this->execute_statement($statement);
         }
         return implode('',$this->internal_buffer);
     }
 
-    private function execute_statement($statement) {
+    public function execute_statement($statement) {
         if ($statement instanceof Kill) {
             die;
         } elseif ($statement instanceof DeclareVariable) {
@@ -1421,7 +1433,7 @@ class Interpreter {
         }
     }
 
-    private function evaluate_expression($expression) {
+    public function evaluate_expression($expression) {
         if ($expression instanceof ImportStatement) {
             $file = $this->evaluate_expression($expression->filepath);
             if (!str_ends_with($file, '.lumen')) {
@@ -1432,9 +1444,24 @@ class Interpreter {
                 die;
             }
             $source = file_get_contents($this->current_dir . '/' . $file) or die('Failed to open file: ' . $this->current_dir . '/' . $file);
-            $inside_interpreter = new Interpreter($source);
+            $inside_interpreter = new Interpreter($source, $this->current_dir . '/' . $file);
+            $optimized = &$inside_interpreter->program;
+
+            $last_literaltext_key = null;
+            foreach (($optimized->body) as $key => $value) {
+                if ($value instanceof LiteralText) {
+                    $last_literaltext_key = $key;
+                }
+            }
+            $inside_interpreter->program->body = array_slice($optimized->body, 0, $last_literaltext_key + 1);
             $inside_interpreter->interpret($this->current_dir . '/' . $file);
-            $new_import_object = new ObjectType(md5($file), $inside_interpreter->variables);
+
+            // foreach (array_reverse($inside_interpreter->program->body) as $key => $value) {
+            //     if ($value instanceof DeleteVariable) {
+
+            //     }
+            // }
+            $new_import_object = new ObjectType("import-" . md5($file), $inside_interpreter->variables, $inside_interpreter);
             return $new_import_object;
         }
 
@@ -1469,13 +1496,27 @@ class Interpreter {
             $object = $this->evaluate_expression($expression->object);
 
             if ($expression->property instanceof FunctionCall) {
-                return $this->call_function($object->properties[$expression->property->name], array_merge([$object->properties], $expression->property->args), TRUE, $object->properties);
-            }
-            // if (!array_key_exists($expression->property->value, $object->properties)) {
-            //     echo "Found undeclared property \"" . $expression->property->value . "\".";
-            //     die;
-            // }
+                $fn = $object->properties[$expression->property->name];
+                $args = $expression->property->args;
+                if (substr( $object->name, 0, 7 ) === "import-") {
+                    return $object->interpreter->call_function($fn, $args);
+                }
+                $props = null;
+                $obj_props = [];
+                if (count($expression->property->args) > 0 && $expression->property->args[0]->value == 'self') {
+                    if (!is_null($object->properties)) {
+                        $obj_props = &$object->properties;
+                    }
+                    $args = array_merge([&$obj_props], $expression->property->args);
+                    $props = &$object->properties;
+                }
+                return $this->call_function($fn, $args, TRUE, $props);
+            } 
             if (($object instanceof ObjectType)) {
+                if (!isset($object->properties[$expression->property->value])) {
+                    echo "Found call for undeclared property \"" . $expression->property->value . "\".";
+                    die;
+                }
                 return $object->properties[$expression->property->value];
             } else {
                 return $object[$expression->property->value];
@@ -1599,7 +1640,7 @@ class Interpreter {
         }
     }
 
-    private function call_function($function, $args, $can_return=TRUE, &$self = null) {
+    public function call_function($function, $args, $can_return=TRUE, &$self = null) {
 
         $function_object = $function;
         if (count($args) !== count($function_object->args)) {
@@ -1636,7 +1677,7 @@ class Interpreter {
         return $val;
     }
 
-    private function call_object($object) {
+    public function call_object($object) {
         $name = $object->name;
         $args = $object->args;
 
@@ -1648,17 +1689,13 @@ class Interpreter {
     
         if (isset($args) && isset($object_def->properties['init'])) {
             $init_method = $object_def->properties['init'];
-            if (count($args) + 1 !== count($init_method->args)) {
-                echo "Incorrect number of arguments for object construction \"$name\".";
-                die;
-            }
-                if (count($init_method->args) >= 1 && $init_method->args[0]->value !== 'self') {
-                echo "Object construction \"$name\" requires at least one argument named self.";
-                die;
+            $props = null;
+            if (count($init_method->args) > 0 && $init_method->args[0]->value == 'self') {
+                $args = array_merge([&$object_def->properties], $args);
+                $props = &$object_def->properties;
             }
             
-            $args = array_merge([&$object_def->properties], $args);
-            $this->call_function($init_method, $args, FALSE, $object_def->properties);
+            $this->call_function($init_method, $args, FALSE, $props);
         }
         return $object_def;
     }
@@ -1667,11 +1704,11 @@ class Interpreter {
 
 
 
-$interpreter = new Interpreter(file_get_contents($argv[1]));
+$interpreter = new Interpreter(file_get_contents($argv[1]), $argv[1]);
 if (isset($argv[2])) {
-    file_put_contents($argv[2], ($interpreter->interpret($argv[1]))) or die("Unable to write the file.");
+    file_put_contents($argv[2], ($interpreter->interpret())) or die("Unable to write the file.");
 
 } else {
-    echo ($interpreter->interpret($argv[1]));
+    echo ($interpreter->interpret());
 }
 

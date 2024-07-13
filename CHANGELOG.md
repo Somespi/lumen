@@ -14,3 +14,4 @@
 - Rename past import to `include`, and adding `import` keyword as a seperate statement for Lumen script importing. 
 - Added  `cos`, `sin`, `tan`, `acos`, `asin`, `Pi`, `E` , `round`, `floor`, `ceil`, `abs`, `sqrt` to Standard Library for mathematical operations.
 - Added `len`, `range`, `sum`, `min`, `max` to Standard Library for array operations.
+- Added `print` statement to print to the standard output immediately.
