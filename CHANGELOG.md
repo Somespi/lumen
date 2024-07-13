@@ -15,3 +15,4 @@
 - Added  `cos`, `sin`, `tan`, `acos`, `asin`, `Pi`, `E` , `round`, `floor`, `ceil`, `abs`, `sqrt` to Standard Library for mathematical operations.
 - Added `len`, `range`, `sum`, `min`, `max` to Standard Library for array operations.
 - Added `print` statement to print to the standard output immediately.
+- Introduced inline comment syntax `#` to allow for commenting out lines of code.

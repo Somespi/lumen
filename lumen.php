@@ -41,6 +41,10 @@ class Lexer {
                 if (substr($this->source, $this->pos, 2) == "?>") {
                     $this->pos+=2;
                     $this->mode = "text";
+                } elseif ($char == '#') {
+                    while ($this->pos < strlen($this->source) && $this->char() != "\n") {
+                        $this->pos++;
+                    }
                 } elseif (is_numeric($char)) {
                     $this->lex_number();
                 } elseif (in_array(strtolower($char), range('a', 'z'))) {
