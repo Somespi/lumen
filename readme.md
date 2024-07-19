@@ -1,3 +1,5 @@
+> Note: This Readme is not yet updated, head to CHANGELOG.md for the latest changes.
+
 # Lumen
 Lumen is a custom programming language designed to blend seamlessly with HTML. It features simple syntax for variable declarations, function definitions, control flow, and more.
 
