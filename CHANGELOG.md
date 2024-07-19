@@ -16,3 +16,6 @@
 - Added `len`, `range`, `sum`, `min`, `max` to Standard Library for array operations.
 - Added `print` statement to print to the standard output immediately.
 - Introduced inline comment syntax `#` to allow for commenting out lines of code.
+- Added `exit` with the ability to print a message and exit the program.
+- Added script-loader for module-like system in source code.
+- Added Error System for Lumen.
