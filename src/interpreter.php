@@ -13,7 +13,7 @@ class Interpreter {
         $this->source_code = $source_code;
         $this->filepath =  realpath($filepath);
         $this->current_dir = dirname($this->filepath);
-        $lexer = new Lexer($this->source_code);
+        $lexer = new Lexer($this->source_code, $this->filepath);
         $parser = new Parser($lexer);
         $program = $parser->parse();
         $optimizer = new Optimizer($program);
