@@ -36,9 +36,9 @@ class Diagnostic {
 
         $start = $start;
         $end = $cursor->pos;
-        $snippet = substr($cursor->source, $start, $end - $start);
+        $lines = explode(PHP_EOL, substr($cursor->source, 0, $start));
 
-        return $snippet . PHP_EOL . (str_repeat("^", $cursor->column - 1)) . PHP_EOL;
+        return $lines[count($lines) - 1] . PHP_EOL . (str_repeat("^", $cursor->column - 1)) . PHP_EOL;
     }
 }
 

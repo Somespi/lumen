@@ -2,6 +2,7 @@
 class Lexer {
     public $source;
     public Cursor $cursor;
+    public $filepath;
     public Diagnostic $diagnostic;
     private $tokens = [];
     private $pos = 0;
@@ -9,6 +10,7 @@ class Lexer {
 
     public function __construct($source, $filepath = null) {
         $this->source = $source;
+        $this->filepath = $filepath;
         $this->cursor = new Cursor($source, $filepath);
         $this->diagnostic = new Diagnostic();
     }

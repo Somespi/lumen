@@ -7,12 +7,10 @@ class Program {
 class EchoStatement {
     public $expression;
     public $pos;
-    public $id;
 
-    public function __construct($expression, $pos, $id) {
+    public function __construct($expression, $pos) {
         $this->expression = $expression;
         $this->pos = $pos;
-        $this->id = $id;
     }
 }
 

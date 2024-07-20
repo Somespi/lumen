@@ -15,6 +15,11 @@ class Cursor {
         return $this->source[$this->pos];
     }   
 
+
+    public function goto($pos) {
+        $steps = $pos - $this->pos;
+        $this->next($steps);
+    }
     public function next($steps = 1) {
         for ($i = 1; $i <= $steps; $i++) {
             $this->pos++;

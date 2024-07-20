@@ -2,7 +2,8 @@
 class Parser {
     public $tokens;
     public $pos = 0;
-    private $echo_tracker = 0;
+    public $diagnostic;
+    public $cursor;
     private $precedence = [
         '&' => 0,
         '|' => 0,
@@ -46,35 +47,38 @@ class Parser {
         '-' => Unary::Minus,
         '~' => Unary::Negate
     ];
-
     private $operators = [
-    '+' => Operation::Add,
-    '-' => Operation::Sub,
-    '/' => Operation::Div,
-    '*' => Operation::Mult,
-    '%' => Operation::Modulo,
-    '&' => Operation::BitAnd,
-    '|' => Operation::BitOr
-
+        '+' => Operation::Add,
+        '-' => Operation::Sub,
+        '/' => Operation::Div,
+        '*' => Operation::Mult,
+        '%' => Operation::Modulo,
+        '&' => Operation::BitAnd,
+        '|' => Operation::BitOr
     ];
 
     public function __construct(Lexer $lexer_object) {
         $this->tokens = $lexer_object->lex();
+        $this->cursor = new Cursor($lexer_object->source, $lexer_object->filepath);
+        $this->diagnostic = new Diagnostic();
     }
 
     private function currentToken() {
+        $this->cursor->goto($this->tokens[$this->pos]->position[1]);
         return $this->tokens[$this->pos];
     }
 
     private function nextToken() {
         $this->pos++;
+        $token = $this->tokens[$this->pos];
+        $this->cursor->goto($token->position[1]);
     }
 
     private function expect($type, $value = null) {
         $token = $this->currentToken();
         if ($token->type !== $type || ($value !== null && $token->value !== $value)) {
-            echo ("Unexpected token: " . $token->type . ", Expected: " . $type . " " . $value);
-            die;
+            $this->cursor->goto($token->position[1]);
+            $this->diagnostic->raise(ErrorType::Syntax, "Unexpected token: \"" . $token->value. "\" , Expected type of: " . strtolower($type) . " " . $value, $token->position[0], $this->cursor);
         }
         $this->nextToken();
     }
@@ -161,25 +165,6 @@ class Parser {
         return $var_reassign;
     }
 
-    private function parse_argumented_assign() {
-        if ($this->currentToken()->type == 'KEYWORD' && $this->currentToken()->value == 'set') {
-            $this->nextToken();
-        } elseif ($this->currentToken()->type == 'KEYWORD' && $this->currentToken()->value != 'set') {
-            echo "Unexpected token: " . $this->currentToken()->type;
-            die;
-        }
-        $name = $this->currentToken()->value;
-        $this->expect('IDENTIFIER');
-
-        $operator = $this->currentToken();
-        $this->expect('ASSIGN_OPERATOR');
-
-        $value = $this->parse_expression();
-        $var_reassign = new AugAssign($name,$this->operators[$operator->value[0]],  $value);
-        $this->expect('SEMI_COLON'); 
-
-        return $var_reassign;
-    }
 
     private function parse_die() {
         $this->expect('KEYWORD', 'die');
@@ -190,8 +175,7 @@ class Parser {
         $this->expect('KEYWORD', 'def');
         $token = $this->currentToken();
         if ($token->type !== "IDENTIFIER") {
-            echo ("Unexpected token: " . $token->type);
-            die;
+            $this->diagnostic->raise(ErrorType::Syntax, "Expected identifier for function name, found: " . $token->value . "", $token->position[0], $this->cursor);
         }
         $name = new Identifier($token->value);
         $this->nextToken();
@@ -200,14 +184,13 @@ class Parser {
         while ($this->currentToken()->type != 'CLOSE_PAREN' && $this->currentToken()->type != "EOF") {
 
             if ($this->currentToken()->type !== "IDENTIFIER") {
-                echo ("Unexpected token: " . $this->currentToken()->type);
-                die;
+                $this->diagnostic->raise(ErrorType::Syntax, "Expected identifier for function declaration, found: " . $this->currentToken()->value . "", $this->currentToken()->position[0], $this->cursor);
+            
             }
             array_push($args, new Identifier($this->currentToken()->value));
             $this->nextToken();
             if ($this->currentToken()->type !== "COMMA" && $this->currentToken()->type !== "CLOSE_PAREN" ) {
-                echo ("Unexpected token: " . $this->currentToken()->type);
-                die;
+                $this->diagnostic->raise(ErrorType::Syntax, "Expected comma or close paren for function declaration, found: " . $this->currentToken()->value . "", $this->currentToken()->position[0], $this->cursor);
             }
             if ($this->currentToken()->type === "COMMA") {
                 $this->nextToken();
@@ -258,8 +241,7 @@ class Parser {
         $this->expect('KEYWORD', 'class');
         $name = $this->parse_expression();
         if (!$name instanceof Identifier) {
-            echo 'Expected Identifier after object, not ' . $name . '.';
-            die;
+            $this->diagnostic->raise(ErrorType::Syntax, 'Expected Identifier after object, not ' . $name . '.', $name->position[0], $this->cursor);
         }
         $this->expect('OPEN_CURLY');
 
@@ -276,8 +258,7 @@ class Parser {
     private function parse_del() {
         $this->expect('KEYWORD', 'del');
         if ($this->currentToken()->type != 'IDENTIFIER') {
-            echo 'Expected Identifier after del, not ' . $this->currentToken()->type . '.';
-            die; 
+            $this->diagnostic->raise(ErrorType::Syntax, 'Expected Identifier after del, not ' . $this->currentToken()->type . '.', $this->currentToken()->position[0], $this->cursor);
         }
         $name = $this->currentToken();
         $this->nextToken();
@@ -325,7 +306,7 @@ class Parser {
         $expression = $this->parse_expression();
         $token = $this->currentToken();
 
-        $echo_statement = new EchoStatement($expression, $token->position, $this->echo_tracker++);
+        $echo_statement = new EchoStatement($expression, $token->position);
         $this->expect('SEMI_COLON'); 
 
         return $echo_statement;
@@ -439,8 +420,10 @@ class Parser {
             $filepath = $this->parse_expression();
             return new ImportStatement($filepath);
         }
-        echo "Unexpected token type: " . $token->type ;
-        die;
+
+        
+        $this->diagnostic->raise(ErrorType::Syntax, "Unexpected token: \"" . $token->value. "\" , Expected expression." . $value, $token->position[0], $this->cursor);
+
 
     }
 
@@ -461,8 +444,7 @@ class Parser {
                     array_push($args, $this->parse_expression());
                     
                     if ($this->currentToken()->type !== "COMMA" && $this->currentToken()->type !== "CLOSE_PAREN" ) {
-                        echo ("Unexpected token: " . $this->currentToken()->type);
-                        die;
+                        $this->diagnostic->raise(ErrorType::Syntax, "Unexpected token: \"" . $this->currentToken()->value. "\" , Expected comma or close parenthesis for function call.", $this->currentToken()->position[0], $this->cursor);
                     }
                     if ($this->currentToken()->type === "COMMA") {
                         $this->nextToken();
