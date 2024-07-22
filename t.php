@@ -67,11 +67,12 @@ class Diagnostic {
     }
 
     public function display_snippet($start, $cursor) {
-
-        $end = $cursor->pos;
-        $lines = explode(PHP_EOL, substr($cursor->source, 0, $start));
-
-        return $lines[count($lines) - 1] . PHP_EOL . (str_repeat("^", $cursor->column - 1)) . PHP_EOL;
+        
+        $lines = explode(PHP_EOL, $cursor->source);
+        $last_line = $lines[$cursor->line - 1];
+        $before_line = $lines[$cursor->line - 2] ?? "";
+        $after_line = $lines[$cursor->line] ??"";
+        return $before_line . PHP_EOL . $last_line . PHP_EOL . (str_repeat("^", strlen($last_line))) . PHP_EOL . $after_line . PHP_EOL;
     }
 }
 

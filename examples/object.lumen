@@ -3,7 +3,7 @@
     let name = 'person';
     let age = 34;
 
-    def __init(self, name) {
+    def ~__init(self, name) {
       self.name = name;
       echo "Class Initialised." + "\n";
     }
