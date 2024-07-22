@@ -45,25 +45,7 @@ class Interpreter {
             $this->variables[$statement->name] = $this->evaluate_expression($statement->value);
         } elseif ($statement instanceof EchoStatement) {
             $value = $this->evaluate_expression($statement->expression);
-            $buffered = "";
-            if (is_array($value)) {
-                $buffered .= '[';
-                $i = 0;
-                foreach ($value as $val) {
-                    $buffered .= "$val";
-                    $i++;
-                    if ($i < count($value)) {
-                        $buffered .= ", ";
-                    }
-                }
-                $buffered .= ']';
-            } elseif (is_object($value)) {
-                $buffered .= "<" . get_class($value) . " '{$value->name->value}' >"; 
-            } else {
-                $buffered .= "{$value}";
-            }
-            $buffered = str_replace('\n', PHP_EOL, $buffered);
-            $this->internal_buffer[] = $buffered;
+            $this->internal_buffer[] = $this->represent_value($value);
         }
         elseif ($statement instanceof LiteralText) {
             $this->internal_buffer[] = $statement->value;
@@ -222,8 +204,9 @@ class Interpreter {
             if ($this->variables[$expression->name] instanceof ObjectType) {
                 return $this->call_object($expression);
             }
+            
             if (!array_key_exists($expression->name, $this->variables)) {
-                $this->diagnostic->raise(ErrorType::Runtime, "Undefined name \"" . $expression->name . "\" was called.", $expression->pos[0], $this->cursor);
+                $this->diagnostic->raise(ErrorType::Runtime, "Undefined name \"{$expression->name}\" was called.", $expression->pos[0], $this->cursor);
             }
             return $this->call_function($this->variables[$expression->name], $expression->args);
         }
@@ -234,19 +217,11 @@ class Interpreter {
             if ($expression->property instanceof FunctionCall) {
                 $fn = $object->properties[$expression->property->name];
                 $args = $expression->property->args;
-                if (substr( $object->name, 0, 7 ) === "import-") {
+
+                if (substr( $object->name->value, 0, 7 ) === "import-") {
                     return $object->interpreter->call_function($fn, $args);
                 }
-                $props = null;
-                $obj_props = [];
-                if (count($expression->property->args) > 0 && $expression->property->args[0]->value == 'self') {
-                    if (!is_null($object->properties)) {
-                        $obj_props = &$object->properties;
-                    }
-                    $args = array_merge([&$obj_props], $expression->property->args);
-                    $props = &$object->properties;
-                }
-                return $this->call_function($fn, $args, TRUE, $props);
+                return $this->dunder_call($expression->property->name, $object, $args);
             } 
             if (($object instanceof ObjectType)) {
                 if (!isset($object->properties[$expression->property->value])) {
@@ -427,6 +402,48 @@ class Interpreter {
         }
         return $object_def;
     }
-    
+
+    public function dunder_call($function_name, $object, $args = []) {
+
+        if (isset($object->properties[$function_name])) {
+
+            $init_method = $object->properties[$function_name];
+            $props = null;
+            if (count($init_method->args) > 0 && $init_method->args[0]->value == 'self') {
+                $args = array_merge([&$object->properties]);
+                $props = &$object->properties;
+            }
+            
+            return $this->call_function($init_method, $args, TRUE, $props);
+        }
+    }
+
+
+    public function represent_value($value) {
+        $buffered = "";
+            if (is_array($value)) {
+                $buffered .= '[';
+                $i = 0;
+                foreach ($value as $val) {
+                    $buffered .= "$val";
+                    $i++;
+                    if ($i < count($value)) {
+                        $buffered .= ", ";
+                    }
+                }
+                $buffered .= ']';
+            } elseif ($value instanceof ObjectType) {
+                
+                if (in_array('__repr', array_keys($value->properties))) {
+                    $buffered .= $this->dunder_call('__repr', $value);
+                } else {
+                    $buffered .= "<" . get_class($value) . " '{$value->name->value}' >"; 
+                }
+            } else {
+                $buffered .= "{$value}";
+            }
+            $buffered = str_replace('\n', PHP_EOL, $buffered);
+            return $buffered;
+    }
 }
 

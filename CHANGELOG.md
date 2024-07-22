@@ -10,7 +10,7 @@
 - Added `+=`, `-=`, `*=`, `/=` and `%=` for arithmetic operators
 - Added `|=` , `&=` and `^=` for bitwise operators
 - Added `~` operator for bitwise not
-- Added Objects with `class` keyword and `inclass` keyword for Inclassed Functions. 
+- Added Objects with `class` keyword. 
 - Rename past import to `include`, and adding `import` keyword as a seperate statement for Lumen script importing. 
 - Added  `cos`, `sin`, `tan`, `acos`, `asin`, `Pi`, `E` , `round`, `floor`, `ceil`, `abs`, `sqrt` to Standard Library for mathematical operations.
 - Added `len`, `range`, `sum`, `min`, `max` to Standard Library for array operations.
@@ -19,3 +19,4 @@
 - Added `exit` with the ability to print a message and exit the program.
 - Added script-loader for module-like system in source code.
 - Added Error & Cursor System for Lumen.
+- Implemented new mechanism for Magic Methods to start with `__`.
