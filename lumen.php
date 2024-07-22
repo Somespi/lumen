@@ -1,5 +1,4 @@
 <?php
-
 $requirements = [
     "root" => "./src/cli.php",
     "dependencies" => [
@@ -33,9 +32,9 @@ try {
         $code .= loadAndStripPHP($dependency);
     }
     $code .= loadAndStripPHP($requirements["root"]);
+    file_put_contents("t.php", $code);
     eval($code);
+
 } catch (Exception $e) {
     echo "Error: " . $e->getMessage();
 }
-
-?>

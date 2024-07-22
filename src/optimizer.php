@@ -35,7 +35,7 @@ class Optimizer {
             $i += 1;
         }
         foreach (array_reverse($scope) as $var) {
-            array_push($this->program->body, new DeleteVariable($var));
+            array_push($this->program->body, new DeleteVariable($var, null));
         }
         return $this->program;
     }
@@ -52,7 +52,7 @@ class Optimizer {
             }  
         }
         foreach (array_reverse($scope) as $var) {
-            array_push($statement->body, new DeleteVariable($var));
+            array_push($statement->body, new DeleteVariable($var, null));
         }
         return $statement;
     }

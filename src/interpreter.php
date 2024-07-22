@@ -6,6 +6,8 @@ class Interpreter {
     public $variables = [];
     public $unoptimised_program;
     public $filepath;
+    public $cursor;
+    public $diagnostic;
     public $current_dir;
     private $internal_buffer = [];
 
@@ -19,11 +21,16 @@ class Interpreter {
         $optimizer = new Optimizer($program);
         $this->unoptimised_program = clone $optimizer->program;
         $this->program = $optimizer->optimize();
+        $this->cursor = new Cursor($this->source_code, $this->filepath);
+        $this->diagnostic = new Diagnostic();
     }
 
     public function interpret() {
         foreach ($this->program->body as $statement) {
             $this->execute_statement($statement);
+            if (isset($statement->pos)) {
+                $this->cursor->goto($statement->pos[1]);
+            }
         }
         return implode('',$this->internal_buffer);
     }
@@ -33,8 +40,7 @@ class Interpreter {
             die;
         } elseif ($statement instanceof DeclareVariable) {
             if (array_key_exists($statement->name, $this->variables)) {
-                echo "Variable \"" . $statement->name . "\" already exists.";
-                die;
+                $this->diagnostic->raise(ErrorType::Runtime, "Identifier \"" . $statement->name . "\" already exists.", $statement->pos[0], $this->cursor);
             }
             $this->variables[$statement->name] = $this->evaluate_expression($statement->value);
         } elseif ($statement instanceof EchoStatement) {
@@ -72,8 +78,7 @@ class Interpreter {
                 if ($statement_child instanceof DeclareFunction || $statement_child instanceof DeclareVariable) {
                     $this->execute_statement($statement_child);
                 } else {
-                    echo "Invalid statement in object declaration, got: " . get_class($statement_child);
-                    die;
+                    $this->diagnostic->raise(ErrorType::Syntax, "Invalid statement in object declaration, got: " . get_class($statement_child), $statement->pos[0], $this->cursor);
                 }
             }
             $properties = array_diff_key($this->variables, $old_vars);
@@ -81,7 +86,7 @@ class Interpreter {
                 unset($this->variables[$key]);
             }
 
-            $this->variables[$statement->name->value] = new ObjectType($name, $properties);
+            $this->variables[$statement->name->value] = new ObjectType($name, $properties, $this->cursor);
         }
         elseif ($statement instanceof LoopStatement) {
                 while ($this->evaluate_expression($statement->condition)) {
@@ -100,8 +105,7 @@ class Interpreter {
         if ($statement->left instanceof Identifier) {
                 $name = $statement->left->value;
                 if (!isset($this->variables[$name])) {
-                    echo "Assigning into undeclared variable.";
-                    die;
+                    $this->diagnostic->raise(ErrorType::Identifier, "Name $name is not defined.", $statement->pos[0], $this->cursor);
                 }
                 $this->variables[$name] = $this->evaluate_expression($statement->value);
                 
@@ -110,31 +114,27 @@ class Interpreter {
                 $name = $this->evaluate_expression($statement->left->property);
                 $this->variables[$statement->left->object->value][$statement->left->property->value] = $this->evaluate_expression($statement->value);
             } elseif ($statement->left instanceof Subscript && $statement->left->slice instanceof Index) {
-                $left = $this->evaluate_expression($statement->identifier);
-                $index = $this->evaluate_expression($statement->slice->value);
+                $left = $this->evaluate_expression($statement->left->identifier);
+                $index = $this->evaluate_expression($statement->left->slice->value);
                 $this->variables[$left][$index] = $this->evaluate_expression($statement->value);
             } else {
-                echo "Invalid assignment.";
-                die;
+                $this->diagnostic->raise(ErrorType::Syntax, "Invalid assignment.", $statement->pos[0], $this->cursor);
             }
         }
         elseif ($statement instanceof AugAssign) {
             $name = $statement->name;
             if (!isset($this->variables[$name])) {
-                echo "Assigning into undeclared variable.";
-                die;
+                $this->diagnostic->raise(ErrorType::Identifier, "Identifier \"" . $name . "\" is not defined.", $statement->pos[0], $this->cursor);
             }
-            $this->variables[$name] = $this->evaluate_expression(new BinaryOperation(new Identifier($statement->name), $statement->operator, $statement->value));
+            $this->variables[$name] = $this->evaluate_expression(new BinaryOperation(new Identifier($statement->name, $statement->pos), $statement->operator, $statement->value, $statement->pos));
         } elseif ($statement instanceof BreakLoop) {
-            echo "Use of break outside of a loop is illegal.";
-            die;
+            $this->diagnostic->raise(ErrorType::Runtime, "Use of continue break of a loop is illegal.", $statement->pos[0], $this->cursor);
         } elseif ($statement instanceof ContinueLoop) {
-            echo "Use of continue outside of a loop is illegal.";
-            die;
+            $this->diagnostic->raise(ErrorType::Runtime, "Use of continue outside of a loop is illegal.", $statement->pos[0], $this->cursor);
         } elseif ($statement instanceof IncludeStatement) {
             $source = file_get_contents($this->current_dir . '/' . $this->evaluate_expression($statement->filepath)) or die('Failed to open file: ' . $this->current_dir . '/' . $this->evaluate_expression($statement->filepath));
-            $inside_interpreter = new Interpreter($source);
-            $this->internal_buffer[] = $inside_interpreter->interpret($this->current_dir . '/' . $this->evaluate_expression($statement->filepath));
+            $inside_interpreter = new Interpreter($source, $this->current_dir . '/' . $this->evaluate_expression($statement->filepath));
+            $this->internal_buffer[] = $inside_interpreter->interpret();
         }  elseif ($statement instanceof IfStatement) {
             $condition = $this->evaluate_expression($statement->condition);
             if ($condition) {
@@ -161,9 +161,7 @@ class Interpreter {
         } elseif ($statement instanceof DeleteVariable) {
             $name = $statement->name;
             if (!isset($this->variables[$name])) {
-                
-                echo "Unexpected Identifier \"" . $name . "\" was given to del";
-                die;
+                $this->diagnostic->raise(ErrorType::Identifier, "Variable \"" . $name . "\" was never defined.", $statement->pos[0], $this->cursor);
             }
             unset($this->variables[$name]);
         } elseif ($statement instanceof DeclareFunction) {
@@ -171,7 +169,7 @@ class Interpreter {
             $args = $statement->args;
             $body = $statement->body;
 
-            $this->variables[$name->value] = new FunctionObject($name, $args, $body, [$this->variables, []]);
+            $this->variables[$name->value] = new FunctionObject($name, $args, $body, [$this->variables, []], $statement->pos);
 
         } else {
             $this->evaluate_expression($statement);
@@ -185,8 +183,7 @@ class Interpreter {
                 $file = $file . '.lumen';
             }
             if (!file_exists($this->current_dir . '/' . $file)) {
-                echo "File not found: " . $this->current_dir . '/' . $file;
-                die;
+                $this->diagnostic->raise(ErrorType::Import, "No such module was found at: " . $this->current_dir . '/' . $file . "", $expression->pos[0], $this->cursor);
             }
             $source = file_get_contents($this->current_dir . '/' . $file) or die('Failed to open file: ' . $this->current_dir . '/' . $file);
             $inside_interpreter = new Interpreter($source, $this->current_dir . '/' . $file);
@@ -199,13 +196,7 @@ class Interpreter {
                 }
             }
             $inside_interpreter->program->body = array_slice($optimized->body, 0, $last_literaltext_key + 1);
-            $inside_interpreter->interpret($this->current_dir . '/' . $file);
-
-            // foreach (array_reverse($inside_interpreter->program->body) as $key => $value) {
-            //     if ($value instanceof DeleteVariable) {
-
-            //     }
-            // }
+            $inside_interpreter->interpret();
             $new_import_object = new ObjectType("import-" . md5($file), $inside_interpreter->variables, $inside_interpreter);
             return $new_import_object;
         }
@@ -231,8 +222,7 @@ class Interpreter {
                 return $this->call_object($expression);
             }
             if (!array_key_exists($expression->name, $this->variables)) {
-                echo "Found call for undeclared function \"" . $expression->name . "\".";
-                die;
+                $this->diagnostic->raise(ErrorType::Runtime, "Undefined name \"" . $expression->name . "\" was called.", $expression->pos[0], $this->cursor);
             }
             return $this->call_function($this->variables[$expression->name], $expression->args);
         }
@@ -259,8 +249,7 @@ class Interpreter {
             } 
             if (($object instanceof ObjectType)) {
                 if (!isset($object->properties[$expression->property->value])) {
-                    echo "Found call for undeclared property \"" . $expression->property->value . "\".";
-                    die;
+                    $this->diagnostic->raise(ErrorType::Identifier, "Undefined property \"" . $expression->property->value . "\" was called.", $expression->pos[0], $this->cursor);
                 }
                 return $object->properties[$expression->property->value];
             } else {
@@ -271,8 +260,7 @@ class Interpreter {
 
         if ($expression instanceof Identifier) {
             if (!array_key_exists($expression->value, $this->variables)) {
-                echo "Found undeclared identifier \"" . $expression->value . "\".";
-                die;
+                $this->diagnostic->raise(ErrorType::Identifier, "Undefined name \"" . $expression->value . "\" was called.", $expression->pos[0], $this->cursor);
             }
 
             return $this->variables[$expression->value];
@@ -306,20 +294,17 @@ class Interpreter {
                     if (($right - floatval(intval($right)) == 0) && ($left - floatval(intval($left)) == 0)) {
                         return floatval(intval($right) % intval($left));
                     }
-                    echo "Unexpected operands: float number cannot be moduled.";
-                    die;
+                    $this->diagnostic->raise(ErrorType::Runtime, "Float number cannot be moduled.", $expression->pos[0], $this->cursor);
                 case Operation::BitAnd:
                     if (($right - floatval(intval($right)) == 0) && ($left - floatval(intval($left)) == 0)) {
                         return floatval(intval($right) and intval($left));
                     }
-                    echo "Unexpected operands: float number cannot be treated within int operation.";
-                    die;
+                    $this->diagnostic->raise(ErrorType::Runtime, "Unexpected operands: float number cannot be treated within integer operation.", $expression->pos[0], $this->cursor);
                 case Operation::BitOr:
                     if (($right - floatval(intval($right)) == 0) && ($left - floatval(intval($left)) == 0)) {
                         return floatval(intval($right) or intval($left));
                     }
-                    echo "Unexpected operands: float number cannot be treated within int operation.";
-                    die;
+                    $this->diagnostic->raise(ErrorType::Runtime, "Unexpected operands: float number cannot be treated within integer operation.", $expression->pos[0], $this->cursor);
             }
         }
         if ($expression instanceof Compare) {
@@ -341,7 +326,7 @@ class Interpreter {
             }
         }
         if ($expression instanceof UnaryOperation) {
-            $operand = $this->evaluate_expression($expression->left);
+            $operand = $this->evaluate_expression($expression->operand);
             switch ($expression->operator) {
                 case Unary::Not:
                     return !$operand;
@@ -352,8 +337,7 @@ class Interpreter {
         if ($expression instanceof Subscript) {
             $variable = $this->variables[($expression->identifier->value)];
             if (!is_array($variable) && !is_string($variable)) {
-                echo "Presented unslicable type.";
-                die;
+                $this->diagnostic->raise(ErrorType::Runtime, "Tried to index into Unslicable type.", $expression->pos[0], $this->cursor);
             }
             if ($expression->slice instanceof Index) {
                 return $variable[$this->evaluate_expression($expression->slice->value)];
@@ -389,8 +373,7 @@ class Interpreter {
 
         $function_object = $function;
         if (count($args) !== count($function_object->args)) {
-            echo "Incorrect number of arguments for function.";
-            die;
+            $this->diagnostic->raise(ErrorType::InvalidArgumentCount, "Incorrect number of arguments for function.", $function_object->pos[0], $this->cursor);
         }
         $val = null;
         
@@ -406,8 +389,7 @@ class Interpreter {
                     $this->execute_statement($statement);
                 } else {
                 if (!$can_return) {
-                    echo "Function cannot have a return value.";
-                    die;
+                    $this->diagnostic->raise(ErrorType::Runtime, "function cannot have a return value.", $statement->pos[0], $this->cursor);
                 }
                 $val = $this->evaluate_expression($statement->value) ?? null;
                 break;
@@ -426,10 +408,10 @@ class Interpreter {
         $name = $object->name;
         $args = $object->args;
 
+
         $object_def = clone $this->variables[$name];
         if (!isset($object_def)) {
-            echo "Object \"$name\" is not defined.";
-            die;
+            $this->diagnostic->raise(ErrorType::Runtime, "Object \"$name\" is not defined.", $object->pos[0], $this->cursor);
         }
     
         if (isset($args) && isset($object_def->properties['init'])) {
@@ -447,4 +429,3 @@ class Interpreter {
     
 }
 
-?>

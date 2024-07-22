@@ -104,7 +104,7 @@ class Parser {
 
         if ($token->type == 'TEXT') {
             $this->nextToken();
-            return new LiteralText($token->value);
+            return new LiteralText($token->value, $token->position);
         }
         #if ($token->type === 'IDENTIFIER' && $this->tokens[$this->pos + 1]->type === 'EQUAL') {
             
@@ -126,12 +126,8 @@ class Parser {
                     return $this->parse_return_statement();
                 case 'def':
                     return $this->parse_function_defination();
-                case 'set':
-                    return $this->parse_set_statement();
                 case 'del':
                     return $this->parse_del();
-                case 'def':
-                    return $this->parse_function_defination();
                 case 'inclass':
                     $this->nextToken();
                     return $this->parse_function_defination(TRUE);
@@ -153,13 +149,13 @@ class Parser {
         if ($this->currentToken()->type == 'KEYWORD') {
             $this->nextToken();
         }
+        $token = $this->currentToken();
         $left = $this->parse_primary_expression();
 
         $this->expect('EQUAL');
         $value = $this->parse_expression();
-        $token = $this->currentToken();
 
-        $var_reassign = new AssignVariable($name, $value);
+        $var_reassign = new AssignVariable($token->name, $value, [$token->position[0], $this->currentToken()->position[1]]);
         $this->expect('SEMI_COLON'); 
 
         return $var_reassign;
@@ -169,7 +165,7 @@ class Parser {
     private function parse_die() {
         $this->expect('KEYWORD', 'die');
         $this->expect('SEMI_COLON');
-        return new Kill();
+        return new Kill($this->currentToken()->position);
     }
     private function parse_function_defination($is_inclass=FALSE) {
         $this->expect('KEYWORD', 'def');
@@ -177,7 +173,7 @@ class Parser {
         if ($token->type !== "IDENTIFIER") {
             $this->diagnostic->raise(ErrorType::Syntax, "Expected identifier for function name, found: " . $token->value . "", $token->position[0], $this->cursor);
         }
-        $name = new Identifier($token->value);
+        $name = new Identifier($token->value, $token->position);
         $this->nextToken();
         $this->expect('OPEN_PAREN');
         $args = [];
@@ -187,7 +183,7 @@ class Parser {
                 $this->diagnostic->raise(ErrorType::Syntax, "Expected identifier for function declaration, found: " . $this->currentToken()->value . "", $this->currentToken()->position[0], $this->cursor);
             
             }
-            array_push($args, new Identifier($this->currentToken()->value));
+            array_push($args, new Identifier($this->currentToken()->value, $this->currentToken()->position));
             $this->nextToken();
             if ($this->currentToken()->type !== "COMMA" && $this->currentToken()->type !== "CLOSE_PAREN" ) {
                 $this->diagnostic->raise(ErrorType::Syntax, "Expected comma or close paren for function declaration, found: " . $this->currentToken()->value . "", $this->currentToken()->position[0], $this->cursor);
@@ -202,28 +198,34 @@ class Parser {
         while ($this->currentToken()->type !== 'CLOSE_CURLY') {
             $body[] = $this->parse_statement();
         }
+        $end = $this->currentToken();
         $this->expect('CLOSE_CURLY');
-        return new DeclareFunction($name, $args, $body, $is_inclass);
+        return new DeclareFunction($name, $args, $body, $is_inclass, [$token->position[0], $end->position[1]]);
     }
 
     private function parse_return_statement() {
+        $start = $this->currentToken()->position[0];
         $this->expect('KEYWORD', 'return');
         $value = $this->parse_expression();
+        $end = $this->currentToken()->position[1];
         $this->expect('SEMI_COLON');
         
-        return new ReturnStatement($value);
+        return new ReturnStatement($value, [$start, $end]);
     }
 
     private function parse_include() {
+        $start = $this->currentToken()->position[0];
         $this->expect('KEYWORD', 'include');
         $value = $this->parse_expression();
+        $end = $this->currentToken()->position[1];
         $this->expect('SEMI_COLON');
 
-        return new IncludeStatement($value);
+        return new IncludeStatement($value, [$start, $end]);
     }
 
 
     private function parse_loop_statement() {
+        $start = $this->currentToken()->position[0];
         $this->expect('KEYWORD', 'loop');
         $condition = $this->parse_expression();
         $this->expect('OPEN_CURLY');
@@ -232,12 +234,14 @@ class Parser {
         while ($this->currentToken()->type !== 'CLOSE_CURLY') {
             $body[] = $this->parse_statement();
         }
+        $end = $this->currentToken()->position[1];
         $this->expect('CLOSE_CURLY');
         
-        return new LoopStatement($condition, $body, $this->currentToken()->position);
+        return new LoopStatement($condition, $body, [$start, $end]);
     }
 
     private function parse_object() {
+        $start = $this->currentToken()->position[0];
         $this->expect('KEYWORD', 'class');
         $name = $this->parse_expression();
         if (!$name instanceof Identifier) {
@@ -249,24 +253,28 @@ class Parser {
         while ($this->currentToken()->type !== 'CLOSE_CURLY') {
             $body[] = $this->parse_statement();
         }
+        $end = $this->currentToken()->position[1];
         $this->expect('CLOSE_CURLY');
         
-        return new ObjectDeclare($name, $body);
+        return new ObjectDeclare($name, $body, [$start, $end]);
     }
     
 
     private function parse_del() {
+        $start = $this->currentToken()->position[0];
         $this->expect('KEYWORD', 'del');
         if ($this->currentToken()->type != 'IDENTIFIER') {
             $this->diagnostic->raise(ErrorType::Syntax, 'Expected Identifier after del, not ' . $this->currentToken()->type . '.', $this->currentToken()->position[0], $this->cursor);
         }
         $name = $this->currentToken();
         $this->nextToken();
+        $end = $this->currentToken()->position[1];
         $this->expect('SEMI_COLON');
-        return new DeleteVariable($name);
+        return new DeleteVariable($name, [$start, $end]);
     }
     
     private function parse_if_statement($original_if = TRUE) {
+        $start = $this->currentToken()->position[0];
         $this->expect('KEYWORD', 'if');
         $condition = $this->parse_expression();
         $this->expect('OPEN_CURLY');
@@ -293,26 +301,28 @@ class Parser {
                 $this->expect('CLOSE_CURLY');
             }
         }
-        
-        return new IfStatement($condition, $body, $tryother, $else, $this->currentToken()->position);
+        $end = $this->currentToken()->position[1];
+        return new IfStatement($condition, $body, $tryother, $else, [$start, $end]);
     }
 
 
     
 
     private function parse_echo() {
+        $start = $this->currentToken()->position[0];
         $this->expect('KEYWORD', 'echo');
 
         $expression = $this->parse_expression();
         $token = $this->currentToken();
-
-        $echo_statement = new EchoStatement($expression, $token->position);
+        $end = $this->currentToken()->position[1];
+        $echo_statement = new EchoStatement($expression, [$start, $end]);
         $this->expect('SEMI_COLON'); 
 
         return $echo_statement;
     }
 
     private function parse_variable_declaration() {
+        $start = $this->currentToken()->position[0];
         $this->expect('KEYWORD', 'let');
 
         $name = $this->currentToken()->value;
@@ -323,65 +333,67 @@ class Parser {
         $value = $this->parse_expression();
         $token = $this->currentToken();
 
-        $var_declaration = new DeclareVariable($name, $value, $token->position);
+        $var_declaration = new DeclareVariable($name, $value, [$start, $token->position[1]]);
         
         $this->expect('SEMI_COLON'); 
 
         return $var_declaration;
     }
     private function parse_expression($precedence = 0) {
+        $start = $this->currentToken()->position[0];
         $left = $this->parse_primary_expression();
         while ($this->currentToken()->type === 'OPERATOR' && $this->precedence[$this->currentToken()->value] > $precedence) {
             $operator = $this->currentToken()->value;
             $this->nextToken();
             $right = $this->parse_expression($this->precedence[$operator]);
-
+            $pos = [$start, $this->currentToken()->position[1]];
             if (in_array($operator, ['<', '>', '<=', '>=', '!=', '=='])) {
-                $left = new Compare($left, $this->comparison[$operator] , $right);
+                $left = new Compare($left, $this->comparison[$operator] , $right, $pos);
             } elseif (in_array($operator, ['&&', '||'])) {
-                $left = new BoolOp($left, $this->bool[$operator] , $right);
+                $left = new BoolOp($left, $this->bool[$operator] , $right, $pos);
             } else {
-                $left = new BinaryOperation($left, $this->operation[$operator], $right);
+                $left = new BinaryOperation($left, $this->operation[$operator], $right, $pos);
             }
         }
         return $left;
     }
 
     private function parse_primary_expression() {
-
+        $start = $this->currentToken()->position[0];
         $token = $this->currentToken();
 
         if ($token->value === '-') {
             $this->nextToken();
             $operand = $this->parse_primary_expression();
-            return new UnaryOperation(Unary::Minus, $operand); 
+            return new UnaryOperation(Unary::Minus, $operand, [$start, $this->currentToken()->position[1]]); 
         } elseif ($token->type === 'NOT') {
             $this->nextToken();
             $operand = $this->parse_primary_expression();
-            return new UnaryOperation(Unary::Not, $operand); 
+            return new UnaryOperation(Unary::Not, $operand, [$start, $this->currentToken()->position[1]]); 
         } elseif ($token->type === 'NEGATE') {
             $this->nextToken();
             $operand = $this->parse_primary_expression();
-            return new UnaryOperation(Unary::Negate, $operand); 
+            return new UnaryOperation(Unary::Negate, $operand, [$start, $this->currentToken()->position[1]]); 
         }
         if ($token->type === 'STRING') {
             $value = $token->value;
             $this->nextToken();
-            return new StringLiteral($value);
+            return new StringLiteral($value, $token->position);
         } elseif ($token->type === 'NUMBER') {
             $value = $token->value;
             $this->nextToken();
-            return new NumberLiteral($value);
+            return new NumberLiteral($value, $token->position);
         } elseif ($token->value == "none") {
             $this->nextToken();
-            return new None();
+            return new None($token->position);
         } elseif ($token->type === 'IDENTIFIER') {
+            $start = $this->currentToken()->position[0];
             $ident = $this->parse_identifier();
 
             if ($this->currentToken()->type == 'EQUAL' && !$ident instanceof FunctionCall) { 
                 $this->expect('EQUAL');
                 $value = $this->parse_expression();
-                $var_reassign = new AssignVariable($ident, $value);
+                $var_reassign = new AssignVariable($ident, $value, [$start, $this->currentToken()->position[1]]);
                 return $var_reassign;
             }
             
@@ -389,11 +401,10 @@ class Parser {
                 $operator = $this->currentToken()->value;
                 $this->nextToken();
                 $value = $this->parse_expression();
-                return new AugAssign($ident->value,$this->operators[$operator[0]], $value);
+                return new AugAssign($ident->value,$this->operators[$operator[0]], $value, [$start, $this->currentToken()->position[1]]);
             } 
 
             elseif ($this->currentToken()->type == 'OPEN_PAREN') {
-
                 $args = [];
                 $this->nextToken();
                 while ($this->currentToken()->type != 'CLOSE_PAREN') {
@@ -403,7 +414,7 @@ class Parser {
                     }
                 }
                 $this->expect('CLOSE_PAREN');
-                return new FunctionCall($ident, $args);
+                return new FunctionCall($ident, $args, [$start, $this->currentToken()->position[1]]);
                 }
             return $ident;
 
@@ -416,13 +427,14 @@ class Parser {
             return $expression;
             
         } elseif ($token->value === 'import') {
+            $start = $this->currentToken()->position[0];
             $this->expect('KEYWORD', 'import');
             $filepath = $this->parse_expression();
-            return new ImportStatement($filepath);
+            return new ImportStatement($filepath, [$start, $this->currentToken()->position[1]]);
         }
 
         
-        $this->diagnostic->raise(ErrorType::Syntax, "Unexpected token: \"" . $token->value. "\" , Expected expression." . $value, $token->position[0], $this->cursor);
+        $this->diagnostic->raise(ErrorType::Syntax, "Unexpected token: \"{$token->value}\" , Expected expression.", $token->position[0], $this->cursor);
 
 
     }
@@ -430,14 +442,15 @@ class Parser {
     private function parse_identifier() {
         $token = $this->currentToken();
         $value = $token->value;
-            $ident = new Identifier($value);
+            $ident = new Identifier($value, $token->position);
             $this->nextToken();
             if ($this->currentToken()->type == 'PERIOD') {
                 $this->nextToken();
-                $object = new MemberAccess(new Identifier($value), $this->parse_identifier());
+                $object = new MemberAccess(new Identifier($value, $token->position), $this->parse_identifier(), [$ident->pos[1], $this->currentToken()->position[1]]);
                 $ident = $object;
             }
             elseif ($this->currentToken()->type == 'OPEN_PAREN') {
+    
                 $args = [];
                 $this->nextToken();
                 while ($this->currentToken()->type != 'CLOSE_PAREN' && $this->currentToken()->type != "EOF") {
@@ -451,18 +464,21 @@ class Parser {
                     }
                 }
                 $this->nextToken();
-                $ident = new FunctionCall($value, $args);
+                $ident = new FunctionCall($value, $args, [$token->position[0], $this->currentToken()->position[1]]);
             }
             elseif ($this->currentToken()->type == 'OPEN_BRACKET') {
+
                 $lower = null;
                 $upper = null;
                 $steps = null;
                 $this->nextToken();
                 if ($this->currentToken()->type != "COLON" && $this->tokens[$this->pos+1]->type == 'CLOSE_BRACKET') {
+                    $index_tok = $this->currentToken();
                     $expression = $this->parse_expression();
                     $this->nextToken();
-                    return new Subscript(new Identifier($value), new Index($expression));
+                    return new Subscript(new Identifier($value, $token->position), new Index($expression, $index_tok->position), [$ident->pos[0], $this->currentToken()->position[1]]);
                 }
+                $sl_rt = $this->currentToken()->position[0];
                 $notation = "";
                 $start_not = [];
                 $i = 0;
@@ -492,7 +508,7 @@ class Parser {
                     $internal_program = $internal_parser->parse();
                     $start = $internal_program->body[0]; 
                 } else {
-                    $start = new NumberLiteral('0');
+                    $start = new NumberLiteral('0', $token->position);
                 }
 
                 if ($stop == TRUE) {
@@ -502,14 +518,14 @@ class Parser {
                         [new Token("EOF", '\0', [$start_not[1][1] - $start_not[1][0], $start_not[1][1] - $start_not[1][0] ])]
                     );
                     if (count($internal_parser->tokens) == 1) {
-                        $stop = new UnaryOperation(Unary::Minus, new NumberLiteral('1'));
+                        $stop = new UnaryOperation(Unary::Minus, new NumberLiteral('1', $token->position), $token->position);
                     }
                     else {
                         $internal_program = $internal_parser->parse();
                         $stop = $internal_program->body[0];
                     }
                 } else {
-                    $stop = new UnaryOperation(Unary::Minus, new NumberLiteral('1'));
+                    $stop = new UnaryOperation(Unary::Minus, new NumberLiteral('1', $token->position), $token->position);
                 }
 
                 if ($step == TRUE) {
@@ -521,14 +537,14 @@ class Parser {
                     $internal_program = $internal_parser->parse();
                     $step = $internal_program->body[0];
                 } else {
-                    $step = new NumberLiteral('1');
+                    $step = new NumberLiteral('1', $token->position);
                 }
+                $sl_op = $this->currentToken()->position[1];
                 $this->nextToken();
-                $ident = new Subscript(new Identifier($value), new Slice($start, $stop, $step));
+                $ident = new Subscript(new Identifier($value, $token->position), new Slice($start, $stop, $step, [$sl_rt, $sl_op]), [$ident->pos[0], $this->currentToken()->position[1]]);
 
             }
             
             return $ident;
     }
 }
-?>
