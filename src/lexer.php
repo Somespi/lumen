@@ -19,7 +19,7 @@ class Lexer {
         array_push($this->tokens, new Token($type, $value, [is_null($start) ? $this->cursor->pos : $start, is_null($end) ? $this->cursor->pos : $end]));
     }
 
-   
+
     public function lex() {
         while ($this->cursor->pos < strlen($this->cursor->source)) {
             if ($this->mode == "lumen") {
@@ -34,7 +34,7 @@ class Lexer {
                     }
                 } elseif (is_numeric($char)) {
                     $this->lex_number();
-                } elseif (in_array(strtolower($char), range('a', 'z'))) {
+                } elseif (in_array(strtolower($char), array_merge(range('a', 'z'), ['_']))) {
                     $this->lex_identifier();
                 } elseif ($char == '"' || $char == "'") {
                     $this->lex_string();

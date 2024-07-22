@@ -414,8 +414,8 @@ class Interpreter {
             $this->diagnostic->raise(ErrorType::Runtime, "Object \"$name\" is not defined.", $object->pos[0], $this->cursor);
         }
     
-        if (isset($args) && isset($object_def->properties['init'])) {
-            $init_method = $object_def->properties['init'];
+        if (isset($args) && isset($object_def->properties['__init'])) {
+            $init_method = $object_def->properties['__init'];
             $props = null;
             if (count($init_method->args) > 0 && $init_method->args[0]->value == 'self') {
                 $args = array_merge([&$object_def->properties], $args);

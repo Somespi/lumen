@@ -3,7 +3,7 @@
 $keywords = ['let', 'if', 'else', 'elif', 'del',
             'die', 'loop', 'none', 'def',
             'return', 'echo', 'break', 'class', 
-            'inclass', 'continue', 'set', 'include', 'import'];
+            'continue', 'set', 'include', 'import'];
 
 class Token {
     public $type;

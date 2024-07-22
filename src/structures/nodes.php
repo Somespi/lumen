@@ -66,14 +66,12 @@ class DeclareFunction {
     public $name;
     public $args;
     public $body;
-    public $inclass;
     public $pos;
 
-    public function __construct($name, $args, $body, $pos, $inclass = FALSE) {
+    public function __construct($name, $args, $body, $pos) {
         $this->name = $name;
         $this->args = $args;
         $this->body = $body;
-        $this->inclass = $inclass;
         $this->pos = $pos;
     }
 }

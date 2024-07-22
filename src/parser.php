@@ -128,9 +128,6 @@ class Parser {
                     return $this->parse_function_defination();
                 case 'del':
                     return $this->parse_del();
-                case 'inclass':
-                    $this->nextToken();
-                    return $this->parse_function_defination(TRUE);
                 case 'class':
                     return $this->parse_object();
                 case 'die':
@@ -167,7 +164,7 @@ class Parser {
         $this->expect('SEMI_COLON');
         return new Kill($this->currentToken()->position);
     }
-    private function parse_function_defination($is_inclass=FALSE) {
+    private function parse_function_defination() {
         $this->expect('KEYWORD', 'def');
         $token = $this->currentToken();
         if ($token->type !== "IDENTIFIER") {
@@ -200,7 +197,7 @@ class Parser {
         }
         $end = $this->currentToken();
         $this->expect('CLOSE_CURLY');
-        return new DeclareFunction($name, $args, $body, $is_inclass, [$token->position[0], $end->position[1]]);
+        return new DeclareFunction($name, $args, $body, [$token->position[0], $end->position[1]]);
     }
 
     private function parse_return_statement() {
