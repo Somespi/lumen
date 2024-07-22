@@ -210,14 +210,15 @@ class Interpreter {
             return $expression->value;
         } 
         if ($expression instanceof FunctionCall) {
-            if (in_array($expression->name, get_class_methods('StdLib'))) {
+            $nativeLib = new NativeLib();
+            if ($nativeLib->has($expression->name)) {
                 $args = [];
                 foreach ($expression->args as $arg) {
                     array_push($args, $this->evaluate_expression($arg));
                 }
-                
-                return call_user_func_array([new StdLib(), $expression->name], $args);
+                return call_user_func_array([$nativeLib, $expression->name], $args);
             } 
+    
             if ($this->variables[$expression->name] instanceof ObjectType) {
                 return $this->call_object($expression);
             }

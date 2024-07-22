@@ -1,6 +1,6 @@
 <?php
 
-class StdLib {
+class Math extends NativeLib {
     public function pow($base, $exponent) {
         return pow($base, $exponent);
     }
@@ -11,29 +11,6 @@ class StdLib {
 
     public function E() {
         return exp(1);
-    }
-    public function array(...$items) {
-        return $items;
-    }
-
-    public function len(...$items) {
-        return count($items[0]);
-    }
-
-    public function range($start, $stop, $step = 1) {
-        return range($start, $stop, $step);
-    }
-
-    public function sum(...$items) {
-        return array_sum($items[0]);
-    }
-
-    public function min(...$items) {
-        return min($items[0]);
-    }
-
-    public function max(...$items) {
-        return max($items[0]);
     }
 
     public function abs($value) {
@@ -80,18 +57,4 @@ class StdLib {
         return atan($value);
     }
 
-    public function print($value) {
-        echo $value;
-    }
-
-    public function println($value) {
-        echo $value . PHP_EOL;
-    }
-
-    public function die($value) {
-        echo $value;
-        die;
-    }
-
 }
-?>

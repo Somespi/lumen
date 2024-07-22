@@ -252,4 +252,3 @@ class Lexer {
         $this->push_token("STRING", $string, $start, $this->cursor->pos - 1);
     }
 }
-?>

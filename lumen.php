@@ -7,7 +7,10 @@ $requirements = [
         "./src/structures/tokens.php",
         "./src/lexer.php",
         "./src/structures/nodes.php",
-        "./src/structures/stdlib.php",
+        "./src/nativelib/array.php",
+        "./src/nativelib/math.php",
+        "./src/nativelib/std.php",
+        "./src/nativelib/core.php",
         "./src/parser.php",
         "./src/optimizer.php",
         "./src/interpreter.php",
@@ -32,7 +35,6 @@ try {
         $code .= loadAndStripPHP($dependency);
     }
     $code .= loadAndStripPHP($requirements["root"]);
-    file_put_contents("t.php", $code);
     eval($code);
 
 } catch (Exception $e) {
