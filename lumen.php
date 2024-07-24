@@ -12,8 +12,6 @@ $requirements = [
         "./src/nativelib/std.php",
         "./src/nativelib/core.php",
         "./src/parser.php",
-        "./src/optimizer.php",
-        "./src/interpreter.php",
     ]
 ];
 
