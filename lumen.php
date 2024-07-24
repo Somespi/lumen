@@ -12,6 +12,7 @@ $requirements = [
         "./src/nativelib/std.php",
         "./src/nativelib/core.php",
         "./src/parser.php",
+        "./src/vm.php",
     ]
 ];
 
