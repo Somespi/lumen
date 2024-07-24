@@ -496,46 +496,61 @@ class Parser {
                 $stop = isset($components[1]) ? TRUE : null;
                 $step = isset($components[2]) ? TRUE : null;
 
-                if ($start == TRUE) {
+            switch ($start) {
+                case TRUE:
                     $internal_parser = new Parser(new Lexer(""));
                     $internal_parser->tokens = array_merge(
-                        array_slice($this->tokens , $start_not[0][0], $start_not[0][1] - $start_not[0][0]), 
+                        array_slice($this->tokens, $start_not[0][0], $start_not[0][1] - $start_not[0][0]),
+                        [new Token("SEMI_COLON", ';', [$start_not[0][1] - $start_not[0][0], $start_not[0][1] - $start_not[0][0]])],
                         [new Token("EOF", '\0', [$start_not[0][1] - $start_not[0][0], $start_not[0][1] - $start_not[0][0]])]
                     );
+                    
                     $internal_program = $internal_parser->parse();
-                    $start = $internal_program->body[0]; 
-                } else {
+                    $start = $internal_program->body[0];
+                    break;
+                default:
                     $start = new NumberLiteral('0', $token->position);
-                }
+                    break;
+            }
 
-                if ($stop == TRUE) {
+            switch ($stop) {
+                case TRUE:
                     $internal_parser = new Parser(new Lexer(""));
                     $internal_parser->tokens = array_merge(
-                        array_slice($this->tokens , $start_not[1][0] + 1, $start_not[1][1] - ($start_not[1][0] + 1)), 
-                        [new Token("EOF", '\0', [$start_not[1][1] - $start_not[1][0], $start_not[1][1] - $start_not[1][0] ])]
+                        array_slice($this->tokens, $start_not[1][0] + 1, $start_not[1][1] - ($start_not[1][0] + 1)),
+                        [new Token("SEMI_COLON", ';', [$start_not[0][1] - $start_not[0][0], $start_not[0][1] - $start_not[0][0]])],
+                        [new Token("EOF", '\0', [$start_not[1][1] - $start_not[1][0], $start_not[1][1] - $start_not[1][0]])]
                     );
-                    if (count($internal_parser->tokens) == 1) {
-                        $stop = new UnaryOperation(Unary::Minus, new NumberLiteral('1', $token->position), $token->position);
+                    switch (count($internal_parser->tokens)) {
+                        case 1:
+                            $stop = new UnaryOperation(Unary::Minus, new NumberLiteral('1', $token->position), $token->position);
+                            break;
+                        default:
+                            $internal_program = $internal_parser->parse();
+                            $stop = $internal_program->body[0];
+                            break;
                     }
-                    else {
-                        $internal_program = $internal_parser->parse();
-                        $stop = $internal_program->body[0];
-                    }
-                } else {
+                    break;
+                default:
                     $stop = new UnaryOperation(Unary::Minus, new NumberLiteral('1', $token->position), $token->position);
-                }
+                    break;
+            }
 
-                if ($step == TRUE) {
+            switch ($step) {
+                case TRUE:
                     $internal_parser = new Parser(new Lexer(""));
                     $internal_parser->tokens = array_merge(
-                        array_slice($this->tokens , $start_not[2][0] + 1, $start_not[2][1] - ($start_not[2][0] + 1)), 
+                        array_slice($this->tokens, $start_not[2][0] + 1, $start_not[2][1] - ($start_not[2][0] + 1)),
+                        [new Token("SEMI_COLON", ';', [$start_not[0][1] - $start_not[0][0], $start_not[0][1] - $start_not[0][0]])],
                         [new Token("EOF", '\0', [$start_not[2][0] + 1, $start_not[2][0] + 1])]
                     );
                     $internal_program = $internal_parser->parse();
                     $step = $internal_program->body[0];
-                } else {
+                    break;
+                default:
                     $step = new NumberLiteral('1', $token->position);
-                }
+                    break;
+            }
                 $sl_op = $this->currentToken()->position[1];
                 $this->nextToken();
                 $ident = new Subscript(new Identifier($value, $token->position), new Slice($start, $stop, $step, [$sl_rt, $sl_op]), [$ident->pos[0], $this->currentToken()->position[1]]);

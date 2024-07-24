@@ -72,6 +72,7 @@ class Interpreter {
         }
         elseif ($statement instanceof LoopStatement) {
                 while ($this->evaluate_expression($statement->condition)) {
+                    $variables = $this->variables;
                     foreach ($statement->body as $statement_child) {
                         if ($statement_child instanceof BreakLoop) {
                             break;
@@ -80,6 +81,9 @@ class Interpreter {
                         } else {
                             $this->execute_statement($statement_child);
                         }
+                    }
+                    foreach (array_diff_key($this->variables, $variables) as $key => $value) {
+                        unset($this->variables[$key]);
                     }
                 }
         } 
@@ -256,21 +260,29 @@ class Interpreter {
             $right = $this->evaluate_expression($expression->right);
             switch ($expression->operator) {
                 case Operation::Add:
-                    if (is_string($left) || is_string($right)) {
-                        return "$right" . "$left";
-                    }
-                    return $right + $left;
+                    return $this->if_possible_call("__add", $right, [$left], function () use ($left, $right) {
+                        return $right + $left;
+                    });
                 case Operation::Sub:
-                    return $right - $left;
+                    return $this->if_possible_call("__sub", $right, [$left], function () use ($left, $right) {
+                        return $right - $left;
+                    });
                 case Operation::Div:
-                    return $right / $left;
+                    return $this->if_possible_call("__div", $right, [$left], function () use ($left, $right) {
+                        return $right / $left;
+                    });
                 case Operation::Mult:
-                    return $right * $left;
+                    return $this->if_possible_call("__mult", $right, [$left], function () use ($left, $right) {
+                        return $right * $left;
+                    });
+                    
                 case Operation::Modulo:
-                    if (($right - floatval(intval($right)) == 0) && ($left - floatval(intval($left)) == 0)) {
-                        return floatval(intval($right) % intval($left));
-                    }
-                    $this->diagnostic->raise(ErrorType::Runtime, "Float number cannot be moduled.", $expression->pos[0], $this->cursor);
+                    return $this->if_possible_call("__mod", $right, [$left], function () use ($left, $right, $expression) {
+                        if (($right - floatval(intval($right)) == 0) && ($left - floatval(intval($left)) == 0)) {
+                            return floatval(intval($right) % intval($left));
+                        }
+                        $this->diagnostic->raise(ErrorType::Runtime, "Float number cannot be moduled.", $expression->pos[0], $this->cursor);
+                    });
                 case Operation::BitAnd:
                     if (($right - floatval(intval($right)) == 0) && ($left - floatval(intval($left)) == 0)) {
                         return floatval(intval($right) and intval($left));
@@ -311,26 +323,32 @@ class Interpreter {
             }
         }
         if ($expression instanceof Subscript) {
-            $variable = $this->variables[($expression->identifier->value)];
-            if (!is_array($variable) && !is_string($variable)) {
+            $variable = $this->variables[$expression->identifier->value];
+            if (!is_array($variable) && !is_string($variable) && !is_object($variable)) {
                 $this->diagnostic->raise(ErrorType::Runtime, "Tried to index into Unslicable type.", $expression->pos[0], $this->cursor);
             }
             if ($expression->slice instanceof Index) {
-                return $variable[$this->evaluate_expression($expression->slice->value)];
+                return $this->if_possible_call("__index", $variable, [$expression->slice->value], function () use ($variable, $expression) {
+                    return $variable[$this->evaluate_expression($expression->slice->value)];
+                });
             }
-
+            
             if ($expression->slice instanceof Slice) {
                 $start = $this->evaluate_expression($expression->slice->lower);
                 $stop = $this->evaluate_expression($expression->slice->upper);
                 $step = $this->evaluate_expression($expression->slice->steps);
+                
                 if ($stop < 0) {
                     $stop = count($variable) - (-1 * $stop);
                 }
                 if ($step <= 0) {
                     throw new InvalidArgumentException("Step cannot be zero.");
                 } 
+                if (is_object($variable)) {
+                    return $this->if_possible_call("__slice", $variable, [$start, $stop, $step], function () {});
+                }
                 $res = array_slice($variable,$start, $stop - $start + 1);
-            
+                
                 if ($step != 1) {
                     $result = [];
                     for ($i = $start; ($step > 0 ? $i < $stop : $i > $stop) ; $i += $step) {
@@ -338,7 +356,8 @@ class Interpreter {
                             $result[] = $res[$i];
                         }
                     }     
-                    return $result;           
+
+                    $res = $result;           
                 }
                 return $res;
             }
@@ -353,12 +372,12 @@ class Interpreter {
         }
         $val = null;
         
-        $save_point_variables = $this->variables;
-        
         foreach ($function_object->args as $index => $arg) {
-            $this->variables[$arg->value] = ($arg->value == 'self' ? $args[$index] : $this->evaluate_expression($args[$index])) ;
+            $this->variables[$arg->value] = ($arg->value == 'self' || gettype($args[$index]) == 'object' ? $args[$index] : $this->evaluate_expression($args[$index])) ;
         }
 
+
+    
 
         foreach ($function_object->body as $statement) {
             if (!$statement instanceof ReturnStatement) {
@@ -406,14 +425,13 @@ class Interpreter {
     public function dunder_call($function_name, $object, $args = []) {
 
         if (isset($object->properties[$function_name])) {
-
             $init_method = $object->properties[$function_name];
             $props = null;
             if (count($init_method->args) > 0 && $init_method->args[0]->value == 'self') {
-                $args = array_merge([&$object->properties]);
+                $args = array_merge([&$object->properties], $args);
                 $props = &$object->properties;
             }
-            
+
             return $this->call_function($init_method, $args, TRUE, $props);
         }
     }
@@ -444,6 +462,13 @@ class Interpreter {
             }
             $buffered = str_replace('\n', PHP_EOL, $buffered);
             return $buffered;
+    }
+
+    public function if_possible_call($fn_name, $object, $args = [], callable $fallback) {
+        if (isset($object->properties[$fn_name])) { 
+            return $this->dunder_call($fn_name, $object, $args);
+        }
+        return $fallback();
     }
 }
 

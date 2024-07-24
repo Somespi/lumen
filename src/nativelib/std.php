@@ -15,4 +15,24 @@ class STD extends NativeLib {
         die;
     }
 
+    public function concat($leftOperand, $rightOperand) {
+        return "$leftOperand$rightOperand";
+    }
+
+    public function index($value, $index) {
+        return $value[intval($index)];
+    }
+
+    public function strlen($value) {
+        return strlen($value);
+    }
+
+    public function type($value) {
+        return $value->name->value;
+    }
+
+    public function ord($value) {
+        return ord($value);
+    }
+
 }
