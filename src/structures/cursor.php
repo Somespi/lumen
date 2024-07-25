@@ -5,6 +5,7 @@ class Cursor {
     public $pos = 0;
     public $line = 1;
     public $column = 1;
+    public $filepath;
 
     public function __construct($source, $filepath = null) {
         $this->source = $source;
