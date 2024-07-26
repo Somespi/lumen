@@ -16,4 +16,9 @@ enum Bytecode : int {
     case ExitScope = 12;
     case Die = 13;
 
+    case LoadConst = 14;
+    
+    case StoreName = 15;
+    case LoadName = 16;
+
 }

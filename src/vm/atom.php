@@ -8,6 +8,7 @@ enum AtomType {
     case Nil;
     case List; 
     case Function;
+    case LiteralText;
 }
 
 

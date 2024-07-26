@@ -25,9 +25,26 @@ class Interpreter {
     private function interpret_statement($statement) {
         if ($statement instanceof Kill) {
             return Bytecode::Die;
-        } else {
-            return $statement->execute();
+        } 
+
+        else if ($statement instanceof LiteralText) {
+            $this->stack[] = new Atom($statement->value, AtomType::LiteralText);
+            $this->bytecodes[] = Bytecode::LoadConst;
+            return count($this->stack) - 1;
         }
+        else if ($statement instanceof AssignVariable) {
+            $name = $this->execute($statement->left);
+            $value = $this->execute($statement->value);
+            $this->bytecodes[] = Bytecode::StoreName; 
+            return $name;
+        }
+        else {
+            return $statement->execute(); 
+        }
+    }
+
+    private function execute($node) {
+        return $node->execute();
     }
 
 }
