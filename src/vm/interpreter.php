@@ -1,6 +1,8 @@
 <?php 
 
 class Interpreter { 
+    
+    public $stack = [];
     public $cursor;
     public $diagnostic;
     public $bytecodes;
@@ -15,9 +17,17 @@ class Interpreter {
 
     public function interpret() {
         foreach ($this->nodes as $node) {
-            $this->bytecodes[] = $this->interpret_statement();
+            $this->bytecodes[] = $this->interpret_statement($node);
         }
         return $this->bytecodes;
+    }
+
+    private function interpret_statement($statement) {
+        if ($statement instanceof Kill) {
+            return Bytecode::Die;
+        } else {
+            return $statement->execute();
+        }
     }
 
 }

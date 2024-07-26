@@ -10,9 +10,10 @@ enum Bytecode : int {
     case Jump = 7;
     case JumpIf = 8;
     case JumpIfNot = 9;
-    case NOP = 10;
+    case Nop = 10;
 
     case EnterScope = 11;
     case ExitScope = 12;
+    case Die = 13;
 
 }

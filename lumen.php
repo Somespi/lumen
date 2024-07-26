@@ -5,14 +5,15 @@ $requirements = [
         "./src/structures/cursor.php",
         "./src/structures/diagnostic.php",
         "./src/structures/tokens.php",
-        "./src/lexer.php",
+        "./src/compiler/lexer.php",
         "./src/structures/nodes.php",
         "./src/nativelib/array.php",
         "./src/nativelib/math.php",
         "./src/nativelib/std.php",
         "./src/nativelib/core.php",
-        "./src/parser.php",
-        "./src/vm.php",
+        "./src/compiler/parser.php",
+        "./src/vm/interpreter.php",
+        "./src/vm/vm.php",
     ]
 ];
 
