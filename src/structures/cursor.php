@@ -2,6 +2,7 @@
 
 class Cursor {
     public $source;
+    public $filepath;
     public $pos = 0;
     public $line = 1;
     public $column = 1;
