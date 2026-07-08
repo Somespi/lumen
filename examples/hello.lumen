@@ -1,4 +1,4 @@
-<?lumen 
+<?calhat 
 let name = "sam";
 def greet(name) {
     print("Hello " + name);

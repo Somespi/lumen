@@ -1,4 +1,4 @@
-<?lumen 
+<?calhat 
     let mymodule = import "hello";
 
     mymodule.greet("Test");

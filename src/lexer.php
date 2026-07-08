@@ -22,7 +22,7 @@ class Lexer {
 
     public function lex() {
         while ($this->cursor->pos < strlen($this->cursor->source)) {
-            if ($this->mode == "lumen") {
+            if ($this->mode == "calhat") {
                 $char = $this->cursor->char();
                 if (substr($this->source, $this->cursor->pos, 2) == "?>") {
                     $this->cursor->next(2);
@@ -190,9 +190,9 @@ class Lexer {
                 $text = "";
                 if ($this->cursor->pos < strlen($this->cursor->source) ) {
                 while ($this->cursor->pos < strlen($this->cursor->source) ) {
-                    if (substr($this->source, $this->cursor->pos,  7) == "<?lumen") {
+                    if (substr($this->source, $this->cursor->pos,  7) == "<?calhat") {
 
-                        $this->mode = "lumen";
+                        $this->mode = "calhat";
                         $this->cursor->next(7);
                         break;
                     }

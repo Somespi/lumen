@@ -1,4 +1,4 @@
-<?lumen
+<?calhat
   class Person {
     let name = 'person';
     let age = 34;

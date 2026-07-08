@@ -165,8 +165,8 @@ class Interpreter {
     public function evaluate_expression($expression) {
         if ($expression instanceof ImportStatement) {
             $file = $this->evaluate_expression($expression->filepath);
-            if (!str_ends_with($file, '.lumen')) {
-                $file = $file . '.lumen';
+            if (!str_ends_with($file, '.calhat')) {
+                $file = $file . '.calhat';
             }
             if (!file_exists($this->current_dir . '/' . $file)) {
                 $this->diagnostic->raise(ErrorType::Import, "No such module was found at: " . $this->current_dir . '/' . $file . "", $expression->pos[0], $this->cursor);

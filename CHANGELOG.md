@@ -4,19 +4,19 @@
 - Added Arrays using `array(1,2,3,...)` and slices with negative values using `array[start:stop:end]` *hence cannot use `array[:stop:end]`*
 
 **v0.1.3**:
-- Improved Echo's internal tokenization to be more efficient by using the same tokenization method as Lumen. Instead of relying on regex replacement, which is slower and harder to debug, we now use parsing. This change allows us to add an `internal_buffer`, enabling the program's output to be treated as a stack. As a result, we resolved the issue of Echo not working properly in loops and function calls.
+- Improved Echo's internal tokenization to be more efficient by using the same tokenization method as Calhat. Instead of relying on regex replacement, which is slower and harder to debug, we now use parsing. This change allows us to add an `internal_buffer`, enabling the program's output to be treated as a stack. As a result, we resolved the issue of Echo not working properly in loops and function calls.
 
 **v0.1.31**:
 - Added `+=`, `-=`, `*=`, `/=` and `%=` for arithmetic operators
 - Added `|=` , `&=` and `^=` for bitwise operators
 - Added `~` operator for bitwise not
 - Added Objects with `class` keyword. 
-- Rename past import to `include`, and adding `import` keyword as a seperate statement for Lumen script importing. 
+- Rename past import to `include`, and adding `import` keyword as a seperate statement for Calhat script importing. 
 - Added  `cos`, `sin`, `tan`, `acos`, `asin`, `Pi`, `E` , `round`, `floor`, `ceil`, `abs`, `sqrt` to Standard Library for mathematical operations.
 - Added `len`, `range`, `sum`, `min`, `max` to Standard Library for array operations.
 - Added `print` statement to print to the standard output immediately.
 - Introduced inline comment syntax `#` to allow for commenting out lines of code.
 - Added `exit` with the ability to print a message and exit the program.
 - Added script-loader for module-like system in source code.
-- Added Error & Cursor System for Lumen.
+- Added Error & Cursor System for Calhat.
 - Implemented new mechanism for Magic Methods to start with `__`.
