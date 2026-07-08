@@ -18,6 +18,7 @@ $requirements = [
 ];
 
 function loadAndStripPHP($filePath) {
+    $filePath = (__DIR__  . DIRECTORY_SEPARATOR  . ($filePath));
     if (!file_exists($filePath)) {
         throw new Exception("File not found: $filePath");
     }
