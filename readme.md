@@ -4,7 +4,7 @@
 
 
 ## Etymology
-"Calhat" is inspired by the Omani historical city of Qalhat, as the city connected cultures in the past, Calhat aims to connect different programming ecosystems by exploring a cross-language approach between PHP, Node.js, and modern web frameworks.
+"Calhat" is inspired by the Omani historical city of Qalhat. 
 
 ## Features
 
