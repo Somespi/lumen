@@ -1,4 +1,11 @@
-![Logo](./resources/calhat.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./resources/calhat.png">
+  <source media="(prefers-color-scheme: light)" srcset="./resources/calhat_light.png">
+  <img alt="Calhat Logo" src="./resources/calhat_light.png">
+</picture>
+
+<br> 
+<br> 
 
 **Calhat** is a lightweight and efficient language inspired by PHP and designed to streamline web development by offering a minimalistic syntax and powerful features. 
 
