@@ -1,7 +1,7 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./resources/calhat.png">
-  <source media="(prefers-color-scheme: light)" srcset="./resources/calhat_light.png">
-  <img alt="Calhat Logo" src="./resources/calhat_light.png">
+  <source media="(prefers-color-scheme: light)" srcset="./resources/calhat_white.png">
+  <img alt="Calhat Logo" src="./resources/calhat_white.png">
 </picture>
 
 <br> 
